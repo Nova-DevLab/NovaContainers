@@ -9,6 +9,10 @@ if(NOVA_BUILD_TESTS)
     test_hash_set.cpp
   )
 
+  add_executable(nova_containers_flat_tests
+    test_flat_containers.cpp
+  )
+
   target_link_libraries(nova_containers_tests
     PRIVATE
       NovaContainers
@@ -19,9 +23,16 @@ if(NOVA_BUILD_TESTS)
       NovaContainers
   )
 
+  target_link_libraries(nova_containers_flat_tests
+    PRIVATE
+      NovaContainers
+  )
+
   add_test(NAME nova_containers_tests COMMAND nova_containers_tests)
   add_test(NAME nova_containers_hash_set_tests
     COMMAND nova_containers_hash_set_tests)
+  add_test(NAME nova_containers_flat_tests
+    COMMAND nova_containers_flat_tests)
 endif()
 
 if(NOVA_BUILD_BENCHMARKS)

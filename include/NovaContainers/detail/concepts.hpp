@@ -34,6 +34,13 @@ concept Transparent = requires {
 	typename T::is_transparent;
 };
 
+template <typename Compare, typename Left, typename Right>
+concept KeyOrderedWith = requires(const Compare& compare, const Left& left,
+								  const Right& right) {
+	{ compare(left, right) } -> std::convertible_to<bool>;
+	{ compare(right, left) } -> std::convertible_to<bool>;
+};
+
 }  // namespace nova::containers::detail
 
 #endif  // NOVA_CONTAINERS_DETAIL_CONCEPTS_HPP_

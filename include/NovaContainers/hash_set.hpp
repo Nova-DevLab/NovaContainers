@@ -9,16 +9,8 @@
 #include <utility>
 
 #include "NovaContainers/detail/concepts.hpp"
+#include "NovaContainers/detail/key_extractors.hpp"
 #include "NovaContainers/detail/raw_hash_table.hpp"
-
-namespace nova::containers::detail {
-
-template <typename Key>
-struct IdentityKeyOfValue {
-	const Key& operator()(const Key& value) const noexcept { return value; }
-};
-
-}  // namespace nova::containers::detail
 
 namespace nova::containers {
 
@@ -42,7 +34,7 @@ class HashSet {
 
  private:
 	using Core = detail::RawHashTable<value_type, Key,
-		detail::IdentityKeyOfValue<Key>, Hash, Eq, Alloc>;
+		detail::IdentityKeyOfValue, Hash, Eq, Alloc>;
 
  public:
 	using iterator = typename Core::const_iterator;

@@ -11,18 +11,8 @@
 #include <utility>
 
 #include "NovaContainers/detail/concepts.hpp"
+#include "NovaContainers/detail/key_extractors.hpp"
 #include "NovaContainers/detail/raw_hash_table.hpp"
-
-namespace nova::containers::detail {
-
-template <typename Key, typename Value>
-struct MapKeyOfValue {
-	const Key& operator()(const std::pair<const Key, Value>& value) const noexcept {
-		return value.first;
-	}
-};
-
-}  // namespace nova::containers::detail
 
 namespace nova::containers {
 
@@ -47,7 +37,7 @@ class HashMap {
 
  private:
 	using Core = detail::RawHashTable<value_type, Key,
-		detail::MapKeyOfValue<Key, Value>, Hash, Eq, Alloc>;
+		detail::PairFirstKeyOfValue, Hash, Eq, Alloc>;
 
  public:
 	using iterator = typename Core::iterator;
