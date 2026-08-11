@@ -158,6 +158,26 @@ struct CollisionHash {
 	std::size_t operator()(int) const noexcept { return 0; }
 };
 
+struct CountingHash {
+	std::size_t operator()(int key) const noexcept {
+		++calls;
+		return std::hash<int>{}(key);
+	}
+
+	inline static std::size_t calls = 0;
+};
+
+struct ThrowOnConstruction {
+	explicit ThrowOnConstruction(int initial_value) : value(initial_value) {
+		if (should_throw) {
+			throw std::runtime_error("construction failure");
+		}
+	}
+
+	inline static bool should_throw = false;
+	int value;
+};
+
 struct ThrowingEquality {
 	bool operator()(int left, int right) const {
 		if (should_throw) {
@@ -1163,6 +1183,64 @@ void TestHeterogeneousLookup() {
 	std::cout << "PASSED!\n";
 }
 
+void TestSingleProbeInsertion() {
+	std::cout << "[Test 24] Single-probe insertion... " << std::flush;
+
+	nova::hash_map<int, int, CountingHash> map;
+	map.reserve(8);
+
+	CountingHash::calls = 0;
+	const auto [first, first_inserted] = map.try_emplace(1, 10);
+	Require(first_inserted);
+	Require(first->second == 10);
+	Require(CountingHash::calls == 1);
+
+	CountingHash::calls = 0;
+	const auto [duplicate, duplicate_inserted] = map.try_emplace(1, 20);
+	Require(!duplicate_inserted);
+	Require(duplicate->second == 10);
+	Require(CountingHash::calls == 1);
+
+	CountingHash::calls = 0;
+	const auto [assigned, assigned_inserted] = map.insert_or_assign(2, 30);
+	Require(assigned_inserted);
+	Require(assigned->second == 30);
+	Require(CountingHash::calls == 1);
+
+	std::cout << "PASSED!\n";
+}
+
+void TestDeferredConstructionExceptionSafety() {
+	std::cout << "[Test 25] Deferred construction exception safety... "
+			  << std::flush;
+
+	nova::hash_map<int, ThrowOnConstruction> map;
+	map.reserve(8);
+	map.try_emplace(1, 10);
+
+	ThrowOnConstruction::should_throw = true;
+	const auto [duplicate, duplicate_inserted] = map.try_emplace(1, 20);
+	Require(!duplicate_inserted);
+	Require(duplicate->second.value == 10);
+
+	bool threw = false;
+	try {
+		map.try_emplace(2, 20);
+	} catch (const std::runtime_error&) {
+		threw = true;
+	}
+	Require(threw);
+	Require(map.size() == 1);
+	Require(!map.contains(2));
+
+	ThrowOnConstruction::should_throw = false;
+	const auto [inserted, was_inserted] = map.try_emplace(2, 20);
+	Require(was_inserted);
+	Require(inserted->second.value == 20);
+
+	std::cout << "PASSED!\n";
+}
+
 int main() {
   std::cout << "=== Running NovaContainers Tests ===\n\n";
 
@@ -1189,6 +1267,8 @@ int main() {
 	TestAllocatorMoveAssignmentException();
 	TestLongStringPayloadMemory();
 	TestHeterogeneousLookup();
+	TestSingleProbeInsertion();
+	TestDeferredConstructionExceptionSafety();
   std::cout << "\nAll NovaContainers tests completed successfully!\n";
   return 0;
 }
