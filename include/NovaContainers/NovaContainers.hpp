@@ -4,6 +4,7 @@
 #include "NovaContainers/detail/concepts.hpp"
 #include "NovaContainers/detail/simd_util.hpp"
 #include "NovaContainers/hash_map.hpp"
+#include "NovaContainers/hash_set.hpp"
 
 namespace nova::containers {
 inline constexpr const char* kVersion = "1.0.0";

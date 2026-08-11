@@ -11,6 +11,7 @@
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifdef _WIN32
@@ -242,6 +243,43 @@ BenchmarkResult RunReservedBenchmark(const std::vector<Key>& keys) {
 	};
 }
 
+template <typename Set, typename Key>
+BenchmarkResult RunReservedSetBenchmark(const std::vector<Key>& keys) {
+	Set set;
+	if constexpr (requires(Set& candidate) { candidate.max_load_factor(0.875F); }) {
+		set.max_load_factor(0.875F);
+	}
+	set.reserve(keys.size());
+
+	const ProcessMemory baseline = ReadProcessMemory();
+	const auto start = std::chrono::steady_clock::now();
+	for (const Key& key : keys) {
+		set.insert(key);
+	}
+	const auto insert_end = std::chrono::steady_clock::now();
+	const ProcessMemory after_insert = ReadProcessMemory();
+
+	int64_t sum = 0;
+	for (const Key& key : keys) {
+		if (set.find(key) != set.end()) {
+			++sum;
+		}
+	}
+	const auto find_end = std::chrono::steady_clock::now();
+
+	return {
+		std::chrono::duration_cast<std::chrono::milliseconds>(insert_end - start).count(),
+		std::chrono::duration_cast<std::chrono::milliseconds>(find_end - insert_end).count(),
+		0,
+		0,
+		sum,
+		after_insert.resident_bytes > baseline.resident_bytes
+			? after_insert.resident_bytes - baseline.resident_bytes
+			: 0,
+		after_insert.peak_bytes,
+	};
+}
+
 template <typename Map>
 BenchmarkResult RunServiceBenchmark(const std::vector<ServiceRecord>& records,
 	const std::vector<std::string>& missing_keys, std::size_t iterations) {
@@ -299,6 +337,62 @@ BenchmarkResult RunServiceBenchmark(const std::vector<ServiceRecord>& records,
 	};
 }
 
+template <typename Set>
+BenchmarkResult RunServiceSetBenchmark(const std::vector<ServiceRecord>& records,
+	const std::vector<std::string>& missing_keys, std::size_t iterations) {
+	Set set;
+	if constexpr (requires(Set& candidate) { candidate.max_load_factor(0.875F); }) {
+		set.max_load_factor(0.875F);
+	}
+	set.reserve(records.size());
+
+	const ProcessMemory baseline = ReadProcessMemory();
+	const auto start = std::chrono::steady_clock::now();
+	for (const ServiceRecord& record : records) {
+		set.insert(record.key);
+	}
+	const auto insert_end = std::chrono::steady_clock::now();
+	const ProcessMemory after_insert = ReadProcessMemory();
+
+	int64_t sum = 0;
+	for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
+		for (const ServiceRecord& record : records) {
+			if (set.find(record.key) != set.end()) {
+				++sum;
+			}
+		}
+	}
+	const auto find_end = std::chrono::steady_clock::now();
+
+	for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
+		for (const std::string& key : missing_keys) {
+			if (set.find(key) != set.end()) {
+				throw std::runtime_error("unexpected missing-key match");
+			}
+		}
+	}
+	const auto missing_find_end = std::chrono::steady_clock::now();
+
+	for (std::size_t index = 0; index < records.size(); index += 4) {
+		set.erase(records[index].key);
+	}
+	const auto erase_end = std::chrono::steady_clock::now();
+
+	return {
+		std::chrono::duration_cast<std::chrono::milliseconds>(insert_end - start).count(),
+		std::chrono::duration_cast<std::chrono::milliseconds>(find_end - insert_end).count(),
+		std::chrono::duration_cast<std::chrono::milliseconds>(
+			missing_find_end - find_end).count(),
+		std::chrono::duration_cast<std::chrono::milliseconds>(
+			erase_end - missing_find_end).count(),
+		sum,
+		after_insert.resident_bytes > baseline.resident_bytes
+			? after_insert.resident_bytes - baseline.resident_bytes
+			: 0,
+		after_insert.peak_bytes,
+	};
+}
+
 void PrintResult(const char* name, const BenchmarkResult& result, bool extended = false) {
 	std::cout << ' ' << name << " -> Insert: " << result.insert_ms
 		<< " ms | Find: " << result.find_ms << " ms";
@@ -315,7 +409,7 @@ int main(int argc, char* argv[]) {
 	try {
 		const Options options = ParseOptions(argc, argv);
 		std::cout << "===========================================\n";
-		std::cout << " [Benchmark] nova::hash_map vs std::unordered_map\n";
+		std::cout << " [Benchmark] NovaContainers vs standard containers\n";
 		std::cout << "===========================================\n";
 
 		if (options.workload != "service") {
@@ -334,6 +428,16 @@ int main(int argc, char* argv[]) {
 			if (options.implementation != "std") {
 				PrintResult("nova::hash_map    ",
 					RunReservedBenchmark<nova::hash_map<int, int64_t>>(integer_keys));
+			}
+
+			std::cout << "\n[Reserved 87.5% load target, int set keys]\n";
+			if (options.implementation != "nova") {
+				PrintResult("std::unordered_set",
+					RunReservedSetBenchmark<std::unordered_set<int>>(integer_keys));
+			}
+			if (options.implementation != "std") {
+				PrintResult("nova::hash_set    ",
+					RunReservedSetBenchmark<nova::hash_set<int>>(integer_keys));
 			}
 		}
 
@@ -362,6 +466,18 @@ int main(int argc, char* argv[]) {
 			if (options.implementation != "std") {
 				PrintResult("nova::hash_map    ",
 					RunServiceBenchmark<nova::hash_map<std::string, int64_t>>(
+						records, missing_keys, options.iterations), true);
+			}
+
+			std::cout << "\n[Service-shaped string set workload]\n";
+			if (options.implementation != "nova") {
+				PrintResult("std::unordered_set",
+					RunServiceSetBenchmark<std::unordered_set<std::string>>(
+						records, missing_keys, options.iterations), true);
+			}
+			if (options.implementation != "std") {
+				PrintResult("nova::hash_set    ",
+					RunServiceSetBenchmark<nova::hash_set<std::string>>(
 						records, missing_keys, options.iterations), true);
 			}
 		}

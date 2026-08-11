@@ -5,17 +5,28 @@ if(NOVA_BUILD_TESTS)
     test_hash_map.cpp
   )
 
+  add_executable(nova_containers_hash_set_tests
+    test_hash_set.cpp
+  )
+
   target_link_libraries(nova_containers_tests
     PRIVATE
       NovaContainers
   )
 
+  target_link_libraries(nova_containers_hash_set_tests
+    PRIVATE
+      NovaContainers
+  )
+
   add_test(NAME nova_containers_tests COMMAND nova_containers_tests)
+  add_test(NAME nova_containers_hash_set_tests
+    COMMAND nova_containers_hash_set_tests)
 endif()
 
 if(NOVA_BUILD_BENCHMARKS)
   add_executable(nova_containers_benchmark
-    benchmark_hash_map.cpp
+    benchmark_containers.cpp
   )
 
   target_link_libraries(nova_containers_benchmark

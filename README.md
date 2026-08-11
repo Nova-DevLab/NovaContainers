@@ -1,6 +1,6 @@
 # NovaContainers
 
-NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 빠른 조회를 목표로 하는 C++20 헤더 전용 컨테이너 라이브러리입니다. 현재는 open addressing과 SIMD control-byte 탐색을 사용하는 `nova::hash_map`을 제공합니다.
+NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 빠른 조회를 목표로 하는 C++20 헤더 전용 컨테이너 라이브러리입니다. open addressing과 SIMD control-byte 탐색을 사용하는 `nova::hash_map`과 `nova::hash_set`을 제공합니다.
 
 ## 주요 특징
 
@@ -8,6 +8,7 @@ NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 �
 - SSE2 16바이트 group 단위 control-byte 탐색
 - 빈 map의 첫 삽입 또는 `reserve()`까지 heap 할당 지연
 - `try_emplace`, `insert_or_assign`, iterator 기반 `erase` 지원
+- value 오버헤드 없이 key만 직접 저장하는 `hash_set`
 - transparent hash/equality를 이용한 heterogeneous lookup 지원
 - stateful hash, equality, allocator의 복사·이동·전파 경로 지원
 - 고정 최대 load factor `0.875`
@@ -47,10 +48,16 @@ int main() {
 	for (const auto& [name, score] : scores) {
 		std::cout << name << ": " << score << '\n';
 	}
+
+	nova::hash_set<std::string> active_users{"alice", "carol"};
+	active_users.insert("dave");
+	if (active_users.contains("carol")) {
+		std::cout << "carol is active\n";
+	}
 }
 ```
 
-개별 헤더인 `<NovaContainers/hash_map.hpp>`를 직접 포함해도 됩니다. 타입 이름은 `nova::hash_map<Key, Value>`와 `nova::HashMap<Key, Value>`를 모두 제공하며, 새 코드에는 STL과 형태가 가까운 `nova::hash_map`을 권장합니다.
+개별 헤더인 `<NovaContainers/hash_map.hpp>` 또는 `<NovaContainers/hash_set.hpp>`를 직접 포함해도 됩니다. 타입 이름은 소문자 `nova::hash_map`, `nova::hash_set`과 PascalCase 별칭을 모두 제공하며, 새 코드에는 STL과 형태가 가까운 소문자 이름을 권장합니다.
 
 ## CMake 연동
 
@@ -75,14 +82,17 @@ cmake -S . -B build `
 
 ## 제공 API
 
-| 영역 | 주요 API |
-|---|---|
-| 삽입·갱신 | `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]` |
-| 조회 | `find`, `contains`, `count`, `at` |
-| 삭제 | `erase(key)`, `erase(iterator)`, `clear` |
-| 용량 | `size`, `empty`, `capacity`, `load_factor`, `max_load_factor`, `reserve`, `rehash` |
-| 반복 | `begin`, `end`, `cbegin`, `cend` |
-| 상태·교환 | `get_allocator`, `Swap` |
+| 컨테이너 | 영역 | 주요 API |
+|---|---|---|
+| `hash_map` | 삽입·갱신 | `insert`, `emplace`, `try_emplace`, `insert_or_assign`, `operator[]` |
+| `hash_set` | 삽입 | `insert`, `emplace` |
+| 공통 | 조회 | `find`, `contains`, `count` |
+| 공통 | 삭제 | `erase(key)`, `erase(iterator)`, `clear` |
+| 공통 | 용량 | `size`, `empty`, `capacity`, `load_factor`, `max_load_factor`, `reserve`, `rehash` |
+| 공통 | 반복 | `begin`, `end`, `cbegin`, `cend` |
+| 공통 | 상태·교환 | `get_allocator`, `Swap` |
+
+`hash_map`은 누락 key에서 예외를 던지는 `at`도 제공합니다.
 
 PascalCase API도 호환 목적으로 함께 제공됩니다.
 
@@ -98,7 +108,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 ## Benchmark
 
-Release benchmark 기본 실행:
+Release benchmark는 map과 set을 각각 표준 컨테이너와 비교합니다.
 
 ```powershell
 .\build\tests\Release\nova_containers_benchmark.exe
