@@ -1,0 +1,40 @@
+# CMake build output
+/build/
+/cmake-build-*/
+/benchmark-data/
+
+# Local development documents and automation
+/AGENTS.md
+/DESIGN.md
+/NEXT_STEPS.md
+/TEST_PLAN.md
+/BENCHMARK.md
+/build_and_test.ps1
+/.github/
+/tests/data/
+
+# Visual Studio user and generated files
+/.vs/
+*.user
+*.suo
+*.vcxproj.user
+
+# Compiled binaries and intermediate files
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exe
+*.dll
+*.lib
+*.a
+
+# Test and coverage output
+/Testing/
+*.gcda
+*.gcno
+*.gcov
+
+# Editor and OS metadata
+.DS_Store
+Thumbs.db
