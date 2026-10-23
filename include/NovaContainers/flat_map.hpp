@@ -1,11 +1,9 @@
 ﻿#ifndef NOVA_CONTAINERS_FLAT_MAP_HPP_
 #define NOVA_CONTAINERS_FLAT_MAP_HPP_
 
-#include <compare>
 #include <cstddef>
 #include <functional>
 #include <initializer_list>
-#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <tuple>
@@ -13,7 +11,8 @@
 #include <utility>
 
 #include "NovaContainers/detail/concepts.hpp"
-#include "NovaContainers/detail/flat_table.hpp"
+#include "NovaContainers/detail/flat/flat_table.hpp"
+#include "NovaContainers/detail/flat/map_iterator.hpp"
 #include "NovaContainers/detail/key_extractors.hpp"
 
 namespace nova::containers {
@@ -37,138 +36,7 @@ class FlatMap {
 
  public:
 	template <bool IsConst>
-	class BasicIterator {
-	 private:
-		using CoreIterator = std::conditional_t<IsConst,
-			typename Core::const_iterator, typename Core::iterator>;
-
-	 public:
-		using iterator_category = std::random_access_iterator_tag;
-		using iterator_concept = std::random_access_iterator_tag;
-		using value_type = FlatMap::value_type;
-		using difference_type = std::ptrdiff_t;
-		using mapped_reference =
-			std::conditional_t<IsConst, const Value&, Value&>;
-
-		struct Reference {
-			const Key& first;
-			mapped_reference second;
-
-			operator value_type() const
-				requires std::copy_constructible<Key> &&
-					std::copy_constructible<Value> {
-				return value_type(first, second);
-			}
-		};
-
-		class Pointer {
-		 public:
-			explicit Pointer(Reference reference) noexcept
-				: reference_(reference) {}
-
-			const Reference* operator->() const noexcept { return &reference_; }
-
-		 private:
-			Reference reference_;
-		};
-
-		using reference = Reference;
-		using pointer = Pointer;
-
-		BasicIterator() noexcept = default;
-		BasicIterator(const BasicIterator&) noexcept = default;
-		BasicIterator& operator=(const BasicIterator&) noexcept = default;
-
-		template <bool OtherConst>
-			requires (IsConst && !OtherConst)
-		BasicIterator(const BasicIterator<OtherConst>& other) noexcept
-			: iterator_(other.iterator_) {}
-
-		reference operator*() const noexcept {
-			return {iterator_->first, iterator_->second};
-		}
-
-		pointer operator->() const noexcept { return pointer(operator*()); }
-
-		BasicIterator& operator++() noexcept {
-			++iterator_;
-			return *this;
-		}
-
-		BasicIterator operator++(int) noexcept {
-			BasicIterator copy = *this;
-			++(*this);
-			return copy;
-		}
-
-		BasicIterator& operator--() noexcept {
-			--iterator_;
-			return *this;
-		}
-
-		BasicIterator operator--(int) noexcept {
-			BasicIterator copy = *this;
-			--(*this);
-			return copy;
-		}
-
-		BasicIterator& operator+=(difference_type offset) noexcept {
-			iterator_ += offset;
-			return *this;
-		}
-
-		BasicIterator& operator-=(difference_type offset) noexcept {
-			iterator_ -= offset;
-			return *this;
-		}
-
-		BasicIterator operator+(difference_type offset) const noexcept {
-			BasicIterator copy = *this;
-			copy += offset;
-			return copy;
-		}
-
-		BasicIterator operator-(difference_type offset) const noexcept {
-			BasicIterator copy = *this;
-			copy -= offset;
-			return copy;
-		}
-
-		friend BasicIterator operator+(
-			difference_type offset, BasicIterator iterator) noexcept {
-			return iterator + offset;
-		}
-
-		reference operator[](difference_type offset) const noexcept {
-			auto&& value = iterator_[offset];
-			return {value.first, value.second};
-		}
-
-		template <bool OtherConst>
-		difference_type operator-(
-			const BasicIterator<OtherConst>& other) const noexcept {
-			return iterator_ - other.iterator_;
-		}
-
-		template <bool OtherConst>
-		bool operator==(const BasicIterator<OtherConst>& other) const noexcept {
-			return iterator_ == other.iterator_;
-		}
-
-		template <bool OtherConst>
-		auto operator<=>(const BasicIterator<OtherConst>& other) const noexcept {
-			return iterator_ <=> other.iterator_;
-		}
-
-	 private:
-		explicit BasicIterator(CoreIterator iterator) noexcept
-			: iterator_(iterator) {}
-
-		CoreIterator iterator_{};
-		template <bool>
-		friend class BasicIterator;
-		friend class FlatMap;
-	};
+	using BasicIterator = detail::FlatMapIterator<Core, FlatMap, IsConst>;
 
 	using iterator = BasicIterator<false>;
 	using const_iterator = BasicIterator<true>;
@@ -215,7 +83,7 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] size_type Count(const LookupKey& key) const {
 		return Contains(key) ? 1 : 0;
 	}
@@ -230,13 +98,13 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator Find(const LookupKey& key) {
 		return iterator(core_.Find(key));
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator Find(const LookupKey& key) const {
 		return const_iterator(core_.Find(key));
 	}
@@ -246,7 +114,7 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] bool Contains(const LookupKey& key) const {
 		return core_.Contains(key);
 	}
@@ -322,23 +190,13 @@ class FlatMap {
 	}
 
 	bool Erase(const Key& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	bool Erase(const LookupKey& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	iterator Erase(iterator position) {
@@ -377,25 +235,25 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator LowerBound(const LookupKey& key) {
 		return iterator(core_.LowerBound(key));
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator LowerBound(const LookupKey& key) const {
 		return const_iterator(core_.LowerBound(key));
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator UpperBound(const LookupKey& key) {
 		return iterator(core_.UpperBound(key));
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator UpperBound(const LookupKey& key) const {
 		return const_iterator(core_.UpperBound(key));
 	}
@@ -411,14 +269,14 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<iterator, iterator> EqualRange(const LookupKey& key) {
 		const auto [first, last] = core_.EqualRange(key);
 		return {iterator(first), iterator(last)};
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<const_iterator, const_iterator> EqualRange(
 		const LookupKey& key) const {
 		const auto [first, last] = core_.EqualRange(key);
@@ -440,7 +298,7 @@ class FlatMap {
 	[[nodiscard]] size_type count(const Key& key) const { return Count(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] size_type count(const LookupKey& key) const {
 		return Count(key);
 	}
@@ -460,13 +318,13 @@ class FlatMap {
 	const_iterator find(const Key& key) const { return Find(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator find(const LookupKey& key) {
 		return Find(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator find(const LookupKey& key) const {
 		return Find(key);
 	}
@@ -474,7 +332,7 @@ class FlatMap {
 	[[nodiscard]] bool contains(const Key& key) const { return Contains(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] bool contains(const LookupKey& key) const {
 		return Contains(key);
 	}
@@ -517,7 +375,7 @@ class FlatMap {
 	bool erase(const Key& key) { return Erase(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	bool erase(const LookupKey& key) {
 		return Erase(key);
 	}
@@ -550,37 +408,37 @@ class FlatMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator lower_bound(const LookupKey& key) {
 		return LowerBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator lower_bound(const LookupKey& key) const {
 		return LowerBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator upper_bound(const LookupKey& key) {
 		return UpperBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	const_iterator upper_bound(const LookupKey& key) const {
 		return UpperBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<iterator, iterator> equal_range(const LookupKey& key) {
 		return EqualRange(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<const_iterator, const_iterator> equal_range(
 		const LookupKey& key) const {
 		return EqualRange(key);
@@ -594,12 +452,6 @@ class FlatMap {
 	}
 
  private:
-	template <typename LookupKey>
-	static constexpr bool HeterogeneousLookup =
-		!std::same_as<std::remove_cvref_t<LookupKey>, Key> &&
-		detail::Transparent<Compare> &&
-		detail::KeyOrderedWith<Compare, Key, LookupKey>;
-
 	static std::pair<iterator, bool> ConvertInsertResult(
 		std::pair<typename Core::iterator, bool> result) {
 		return {iterator(result.first), result.second};

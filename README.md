@@ -99,6 +99,31 @@ cmake -S . -B build `
   -DNOVA_BUILD_BENCHMARKS=OFF
 ```
 
+최상위 프로젝트로 구성하면 테스트와 benchmark가 기본 활성화됩니다. `add_subdirectory()`로 포함하면 두 옵션의 기본값은 `OFF`이며, 명시적으로 설정한 값은 유지됩니다. C++20과 AVX2 요구 사항은 라이브러리 target을 통해 전파하고, 경고 옵션은 자체 테스트와 benchmark에만 적용합니다.
+
+## 소스 구조
+
+```text
+include/NovaContainers/
+  NovaContainers.hpp       # 집계 헤더
+  hash_map.hpp, hash_set.hpp
+  flat_map.hpp, flat_set.hpp
+  detail/
+    concepts.hpp           # 공통 타입 및 이종 키 조회 제약
+    key_extractors.hpp     # map/set 키 추출
+    hash/
+      raw_hash_table.hpp   # 해시 저장소, 탐색 및 수명 관리
+      simd_group.hpp       # control-byte SIMD 탐색
+    flat/
+      flat_table.hpp       # 정렬 저장소와 일괄 구성
+      map_iterator.hpp     # key 변경을 막는 map proxy iterator
+cmake/                     # 개발 실행 파일 공통 설정
+tests/                    # hash/ 및 flat/ 기능 테스트
+benchmarks/                # 독립 성능 측정 실행 파일
+```
+
+공개 include 경로와 소문자/PascalCase API는 유지합니다. `detail/` 아래 파일은 내부 구현이며 직접 포함하는 외부 코드의 호환 대상이 아닙니다. 내부 설계와 변경 시 지켜야 할 조건은 [구조 문서](docs/architecture.md)에 정리되어 있습니다.
+
 ## 제공 API
 
 | 컨테이너 | 영역 | 주요 API |
@@ -134,13 +159,13 @@ ctest --test-dir build -C Release --output-on-failure
 Release benchmark는 map과 set을 각각 표준 컨테이너와 비교합니다.
 
 ```powershell
-.\build\tests\Release\nova_containers_benchmark.exe
+.\build\benchmarks\Release\nova_containers_benchmark.exe
 ```
 
 실제 서비스형 데이터는 UTF-8 `key<TAB>int64_value` 형식으로 입력할 수 있습니다.
 
 ```powershell
-.\build\tests\Release\nova_containers_benchmark.exe `
+.\build\benchmarks\Release\nova_containers_benchmark.exe `
   --workload service `
   --dataset D:\data\anonymous_tags.tsv `
   --iterations 20

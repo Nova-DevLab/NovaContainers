@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "NovaContainers/detail/concepts.hpp"
-#include "NovaContainers/detail/flat_table.hpp"
+#include "NovaContainers/detail/flat/flat_table.hpp"
 #include "NovaContainers/detail/key_extractors.hpp"
 
 namespace nova::containers {
@@ -78,7 +78,7 @@ class FlatSet {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] size_type Count(const LookupKey& key) const {
 		return Contains(key) ? 1 : 0;
 	}
@@ -90,7 +90,7 @@ class FlatSet {
 	iterator Find(const Key& key) const { return core_.Find(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator Find(const LookupKey& key) const {
 		return core_.Find(key);
 	}
@@ -100,7 +100,7 @@ class FlatSet {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] bool Contains(const LookupKey& key) const {
 		return core_.Contains(key);
 	}
@@ -120,23 +120,13 @@ class FlatSet {
 	}
 
 	bool Erase(const Key& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	bool Erase(const LookupKey& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	iterator Erase(iterator position) { return core_.Erase(position); }
@@ -158,13 +148,13 @@ class FlatSet {
 	iterator UpperBound(const Key& key) const { return core_.UpperBound(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator LowerBound(const LookupKey& key) const {
 		return core_.LowerBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator UpperBound(const LookupKey& key) const {
 		return core_.UpperBound(key);
 	}
@@ -174,7 +164,7 @@ class FlatSet {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<iterator, iterator> EqualRange(const LookupKey& key) const {
 		return core_.EqualRange(key);
 	}
@@ -191,7 +181,7 @@ class FlatSet {
 	[[nodiscard]] size_type count(const Key& key) const { return Count(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] size_type count(const LookupKey& key) const {
 		return Count(key);
 	}
@@ -206,7 +196,7 @@ class FlatSet {
 	iterator find(const Key& key) const { return Find(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator find(const LookupKey& key) const {
 		return Find(key);
 	}
@@ -214,7 +204,7 @@ class FlatSet {
 	[[nodiscard]] bool contains(const Key& key) const { return Contains(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	[[nodiscard]] bool contains(const LookupKey& key) const {
 		return Contains(key);
 	}
@@ -235,7 +225,7 @@ class FlatSet {
 	bool erase(const Key& key) { return Erase(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	bool erase(const LookupKey& key) {
 		return Erase(key);
 	}
@@ -262,30 +252,24 @@ class FlatSet {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator lower_bound(const LookupKey& key) const {
 		return LowerBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	iterator upper_bound(const LookupKey& key) const {
 		return UpperBound(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousOrderedLookup<Compare, Key, LookupKey>
 	std::pair<iterator, iterator> equal_range(const LookupKey& key) const {
 		return EqualRange(key);
 	}
 
  private:
-	template <typename LookupKey>
-	static constexpr bool HeterogeneousLookup =
-		!std::same_as<std::remove_cvref_t<LookupKey>, Key> &&
-		detail::Transparent<Compare> &&
-		detail::KeyOrderedWith<Compare, Key, LookupKey>;
-
 	static std::pair<iterator, bool> ConvertInsertResult(
 		std::pair<typename Core::iterator, bool> result) {
 		return {iterator(result.first), result.second};

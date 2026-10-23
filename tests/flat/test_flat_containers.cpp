@@ -159,6 +159,34 @@ void TestFlatMapBasicOperations() {
 	Require(threw, "flat_map at() did not throw for a missing key");
 }
 
+void TestFlatMapIteratorCompatibility() {
+	using Map = nova::flat_map<int, int>;
+	static_assert(std::is_same_v<Map::BasicIterator<false>, Map::iterator>);
+	static_assert(std::is_same_v<Map::BasicIterator<true>, Map::const_iterator>);
+	static_assert(std::is_constructible_v<Map::const_iterator, Map::iterator>);
+	static_assert(!std::is_constructible_v<Map::iterator, Map::const_iterator>);
+
+	Map values{{1, 10}, {2, 20}, {3, 30}, {4, 40}};
+	Map::iterator first = values.begin();
+	Map::const_iterator const_first = first;
+	Require(first == const_first && const_first == first,
+		"mutable and const iterators must compare equally");
+	Require(values.cend() - first == 4 && values.end() - const_first == 4,
+		"mixed iterator distance must preserve storage positions");
+	Require(first < values.cend() && const_first < values.end(),
+		"mixed iterator ordering must preserve storage positions");
+	Require((2 + first)->first == 3 && first[3].second == 40,
+		"iterator offset and indexing must preserve proxy references");
+	first[1].second = 25;
+	Require(values.at(2) == 25, "proxy reference must update the mapped value");
+
+	const auto next = values.erase(const_first + 1);
+	Require(next->first == 3 && values.size() == 3,
+		"const iterator erase must return the next element");
+	Require(values.erase(values.begin())->first == 3,
+		"mutable iterator erase must return the next element");
+}
+
 void TestFlatMapDeferredConstruction() {
 	nova::flat_map<int, ThrowOnConstruction> values;
 	values.reserve(8);
@@ -401,6 +429,7 @@ void TestDirectStorageAccounting() {
 int main() {
 	try {
 		TestFlatMapBasicOperations();
+		TestFlatMapIteratorCompatibility();
 		TestFlatMapDeferredConstruction();
 		TestFlatMapBulkAssignment();
 		TestFlatMapHeterogeneousLookup();

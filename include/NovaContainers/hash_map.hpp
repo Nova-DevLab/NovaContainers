@@ -12,7 +12,7 @@
 
 #include "NovaContainers/detail/concepts.hpp"
 #include "NovaContainers/detail/key_extractors.hpp"
-#include "NovaContainers/detail/raw_hash_table.hpp"
+#include "NovaContainers/detail/hash/raw_hash_table.hpp"
 
 namespace nova::containers {
 
@@ -82,7 +82,7 @@ class HashMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	[[nodiscard]] size_type Count(const LookupKey& key) const {
 		return Contains(key) ? 1 : 0;
 	}
@@ -95,13 +95,13 @@ class HashMap {
 	const_iterator Find(const Key& key) const { return core_.Find(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	iterator Find(const LookupKey& key) {
 		return core_.Find(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	const_iterator Find(const LookupKey& key) const {
 		return core_.Find(key);
 	}
@@ -111,7 +111,7 @@ class HashMap {
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	[[nodiscard]] bool Contains(const LookupKey& key) const {
 		return core_.Contains(key);
 	}
@@ -191,23 +191,13 @@ class HashMap {
 	}
 
 	bool Erase(const Key& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	bool Erase(const LookupKey& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			return false;
-		}
-		Erase(position);
-		return true;
+		return core_.EraseKey(key);
 	}
 
 	iterator Erase(iterator position) { return core_.Erase(position); }
@@ -227,7 +217,7 @@ class HashMap {
 	[[nodiscard]] size_type count(const Key& key) const { return Count(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	[[nodiscard]] size_type count(const LookupKey& key) const {
 		return Count(key);
 	}
@@ -251,13 +241,13 @@ class HashMap {
 	const_iterator find(const Key& key) const { return Find(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	iterator find(const LookupKey& key) {
 		return Find(key);
 	}
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	const_iterator find(const LookupKey& key) const {
 		return Find(key);
 	}
@@ -265,7 +255,7 @@ class HashMap {
 	[[nodiscard]] bool contains(const Key& key) const { return Contains(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	[[nodiscard]] bool contains(const LookupKey& key) const {
 		return Contains(key);
 	}
@@ -309,7 +299,7 @@ class HashMap {
 	bool erase(const Key& key) { return Erase(key); }
 
 	template <typename LookupKey>
-		requires HeterogeneousLookup<LookupKey>
+		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
 	bool erase(const LookupKey& key) {
 		return Erase(key);
 	}
@@ -329,13 +319,6 @@ class HashMap {
 	}
 
  private:
-	template <typename LookupKey>
-	static constexpr bool HeterogeneousLookup =
-		!std::same_as<std::remove_cvref_t<LookupKey>, Key> &&
-		detail::Transparent<Hash> && detail::Transparent<Eq> &&
-		detail::Hashable<Hash, LookupKey> &&
-		detail::KeyEqualityWith<Eq, Key, LookupKey>;
-
 	Core core_;
 };
 

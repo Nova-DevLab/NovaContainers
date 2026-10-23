@@ -15,7 +15,7 @@
 #include <utility>
 
 #include "NovaContainers/detail/concepts.hpp"
-#include "NovaContainers/detail/simd_util.hpp"
+#include "NovaContainers/detail/hash/simd_group.hpp"
 
 namespace nova::containers::detail {
 
@@ -159,14 +159,7 @@ class RawHashTable {
 		  allocator_(allocator_traits::select_on_container_copy_construction(
 			  other.allocator_)) {
 		try {
-			if (other.capacity_ != 0) {
-				AllocateStorage(other.capacity_);
-			}
-			for (const_iterator position = other.Begin();
-				 position != other.End(); ++position) {
-				const value_type& value = *position;
-				Insert(value);
-			}
+			CopyStorageFrom(other);
 		} catch (...) {
 			ClearAndDeallocate();
 			throw;
@@ -207,14 +200,7 @@ class RawHashTable {
 
 		RawHashTable replacement(NoAllocateTag{}, other.hash_func_, other.eq_func_,
 			replacement_allocator);
-		if (other.capacity_ != 0) {
-			replacement.AllocateStorage(other.capacity_);
-		}
-		for (const_iterator position = other.Begin();
-			 position != other.End(); ++position) {
-			const value_type& value = *position;
-			replacement.Insert(value);
-		}
+		replacement.CopyStorageFrom(other);
 
 		using std::swap;
 		swap(hash_func_, replacement.hash_func_);
@@ -403,6 +389,17 @@ class RawHashTable {
 		return iterator(this, index + 1);
 	}
 
+	template <typename LookupKey>
+		requires Hashable<Hash, LookupKey> && KeyEqualityWith<Eq, Key, LookupKey>
+	bool EraseKey(const LookupKey& key) {
+		const iterator position = Find(key);
+		if (position == End()) {
+			return false;
+		}
+		Erase(position);
+		return true;
+	}
+
 	void Clear() noexcept {
 		if (capacity_ == 0) {
 			return;
@@ -556,6 +553,17 @@ class RawHashTable {
 		SyncControlTail();
 	}
 
+	void CopyStorageFrom(const RawHashTable& other) {
+		if (other.capacity_ != 0) {
+			AllocateStorage(other.capacity_);
+		}
+		for (const_iterator position = other.Begin();
+			 position != other.End(); ++position) {
+			const value_type& value = *position;
+			Insert(value);
+		}
+	}
+
 	void SwapStorage(RawHashTable& other) noexcept {
 		using std::swap;
 		swap(capacity_, other.capacity_);
@@ -574,6 +582,20 @@ class RawHashTable {
 	}
 
 	template <typename LookupKey>
+	size_type FindMatchingIndex(BitMask matches, size_type sequence,
+		const LookupKey& key) const {
+		while (matches) {
+			const size_type index =
+				(sequence + matches.LowestSetBit()) & (capacity_ - 1);
+			if (eq_func_(KeyFrom(slots_[index].value_), key)) [[likely]] {
+				return index;
+			}
+			matches.ClearLowestSetBit();
+		}
+		return capacity_;
+	}
+
+	template <typename LookupKey>
 		requires Hashable<Hash, LookupKey> &&
 			KeyEqualityWith<Eq, Key, LookupKey>
 	[[nodiscard]] size_type FindIndex(const LookupKey& key) const {
@@ -584,14 +606,9 @@ class RawHashTable {
 		size_type sequence = h1 & (capacity_ - 1);
 		while (true) {
 			Group group(ctrl_ + sequence);
-			BitMask matches = group.Match(h2);
-			while (matches) {
-				const size_type index =
-					(sequence + matches.LowestSetBit()) & (capacity_ - 1);
-				if (eq_func_(KeyFrom(slots_[index].value_), key)) [[likely]] {
-					return index;
-				}
-				matches.ClearLowestSetBit();
+			const size_type index = FindMatchingIndex(group.Match(h2), sequence, key);
+			if (index != capacity_) {
+				return index;
 			}
 			if (group.MatchEmpty()) {
 				return capacity_;
@@ -610,14 +627,9 @@ class RawHashTable {
 		bool found_target = false;
 		while (true) {
 			Group group(ctrl_ + sequence);
-			BitMask matches = group.Match(h2);
-			while (matches) {
-				const size_type index =
-					(sequence + matches.LowestSetBit()) & (capacity_ - 1);
-				if (eq_func_(KeyFrom(slots_[index].value_), key)) [[likely]] {
-					return {index, h2, true};
-				}
-				matches.ClearLowestSetBit();
+			const size_type index = FindMatchingIndex(group.Match(h2), sequence, key);
+			if (index != capacity_) {
+				return {index, h2, true};
 			}
 
 			if (!found_target) {

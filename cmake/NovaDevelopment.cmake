@@ -1,0 +1,11 @@
+# Keep development warnings and language-mode settings local to our executables.
+function(nova_add_executable target)
+	add_executable(${target} ${ARGN})
+	target_link_libraries(${target} PRIVATE nova::containers)
+	set_target_properties(${target} PROPERTIES CXX_EXTENSIONS OFF)
+	if(MSVC)
+		target_compile_options(${target} PRIVATE /W4 /permissive-)
+	else()
+		target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+	endif()
+endfunction()

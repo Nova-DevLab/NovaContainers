@@ -1,5 +1,5 @@
-﻿#ifndef NOVA_CONTAINERS_DETAIL_SIMD_UTIL_HPP_
-#define NOVA_CONTAINERS_DETAIL_SIMD_UTIL_HPP_
+﻿#ifndef NOVA_CONTAINERS_DETAIL_HASH_SIMD_GROUP_HPP_
+#define NOVA_CONTAINERS_DETAIL_HASH_SIMD_GROUP_HPP_
 
 #include <cstdint>
 #include <cstddef>
@@ -109,4 +109,4 @@ using Group = GroupSse2;
 
 }  // namespace nova::containers::detail
 
-#endif  // NOVA_CONTAINERS_DETAIL_SIMD_UTIL_HPP_
+#endif  // NOVA_CONTAINERS_DETAIL_HASH_SIMD_GROUP_HPP_

@@ -188,6 +188,17 @@ class FlatTable {
 	iterator Erase(iterator position) { return values_.erase(position); }
 	iterator Erase(const_iterator position) { return values_.erase(position); }
 
+	template <typename LookupKey>
+		requires KeyOrderedWith<Compare, Key, LookupKey>
+	bool EraseKey(const LookupKey& key) {
+		const iterator position = Find(key);
+		if (position == End()) {
+			return false;
+		}
+		Erase(position);
+		return true;
+	}
+
 	void Clear() noexcept { values_.clear(); }
 	void Reserve(size_type element_count) { values_.reserve(element_count); }
 	void ShrinkToFit() { values_.shrink_to_fit(); }
