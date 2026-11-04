@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(NovaContainers VERSION 1.1.0 LANGUAGES CXX)
+project(NovaContainers VERSION 2.0.0 LANGUAGES CXX)
 
 add_library(NovaContainers INTERFACE)
 add_library(nova::containers ALIAS NovaContainers)

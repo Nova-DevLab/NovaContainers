@@ -1,6 +1,6 @@
 # 변경 내역
 
-## 미출시
+## 2.0.0 - 2026-11-04
 
 - 모든 컨테이너의 공개 API, 내부 구현, 테스트와 벤치마크 명명을 `snake_case`로 통일했습니다. PascalCase 중복 API·타입 별칭을 제거하고 집계 헤더를 `NovaContainers/nova_containers.hpp`로 변경했습니다. 기존 PascalCase 호출과 집계 헤더 include는 수정해야 합니다.
 

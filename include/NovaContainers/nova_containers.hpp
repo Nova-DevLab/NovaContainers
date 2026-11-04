@@ -8,7 +8,7 @@
 #include "NovaContainers/list.hpp"
 
 namespace nova::containers {
-inline constexpr const char* k_version = "1.0.0";
+inline constexpr const char* k_version = "2.0.0";
 }  // 네임스페이스 nova::containers
 
 #endif  // NOVA_CONTAINERS_HPP_ 끝
