@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-04",
+  "cpu": "Intel Core i7-1165G7",
+  "compiler": "MSVC 19.51.36260.0",
+  "configuration": "x64 Release C++20 AVX2",
+  "priority": "BelowNormal",
+  "affinity_mask": 2,
+  "logical_cpu": 1,
+  "build_parallelism": 1,
+  "compile_environment": {
+    "_CL_": "/cgthreads1",
+    "_LINK_": "/CGTHREADS:1"
+  },
+  "measurement": "wall clock, warmup, 11 alternating samples, both allocation orders",
+  "iterations": {
+    "100000": 100,
+    "1000000": 20
+  },
+  "baseline_header_sha256": "fef927e0a1f67d69ba3a97ede6f13f68f6155d4e18cea96645021d142567b9b3",
+  "final_header_sha256": "1b4a139bbe9cc9c5b77a0b1cecc355efa69699afbf95ae7028c158cd38c7a017",
+  "benchmark_sha256": "860f70183b8322d0e4fa2c530b931d97e509e1720a60da936c62acec3101fc42",
+  "files": [
+    {
+      "count": 100000,
+      "order": 0,
+      "filename": "list_iteration_2026-11-04_100k_before_first.csv"
+    },
+    {
+      "count": 100000,
+      "order": 1,
+      "filename": "list_iteration_2026-11-04_100k_after_first.csv"
+    },
+    {
+      "count": 1000000,
+      "order": 0,
+      "filename": "list_iteration_2026-11-04_1m_before_first.csv"
+    },
+    {
+      "count": 1000000,
+      "order": 1,
+      "filename": "list_iteration_2026-11-04_1m_after_first.csv"
+    }
+  ],
+  "validation": "Release list CTest passed; ASan Release list CTest passed; default benchmark smoke passed"
+}

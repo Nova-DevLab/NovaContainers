@@ -19,9 +19,9 @@
 #include <Psapi.h>
 #endif
 
-#include "NovaContainers/NovaContainers.hpp"
+#include "NovaContainers/nova_containers.hpp"
 
-struct BenchmarkResult {
+struct benchmark_result {
 	int64_t insert_ms = 0;
 	int64_t find_ms = 0;
 	int64_t missing_find_ms = 0;
@@ -31,12 +31,12 @@ struct BenchmarkResult {
 	std::size_t process_peak_bytes = 0;
 };
 
-struct ServiceRecord {
+struct service_record {
 	std::string key;
 	int64_t value = 0;
 };
 
-struct Options {
+struct benchmark_options {
 	std::string dataset_path;
 	std::string implementation = "both";
 	std::string workload = "all";
@@ -44,12 +44,12 @@ struct Options {
 	std::size_t synthetic_count = 200000;
 };
 
-struct ProcessMemory {
+struct process_memory {
 	std::size_t resident_bytes = 0;
 	std::size_t peak_bytes = 0;
 };
 
-ProcessMemory ReadProcessMemory() {
+process_memory read_process_memory() {
 #ifdef _WIN32
 	PROCESS_MEMORY_COUNTERS_EX counters{};
 	const BOOL succeeded = GetProcessMemoryInfo(
@@ -62,7 +62,7 @@ ProcessMemory ReadProcessMemory() {
 	return {counters.WorkingSetSize, counters.PeakWorkingSetSize};
 #elif defined(__linux__)
 	std::ifstream input("/proc/self/status");
-	ProcessMemory memory;
+	process_memory memory;
 	std::string line;
 	while (std::getline(input, line)) {
 		const bool is_resident = line.starts_with("VmRSS:");
@@ -87,7 +87,7 @@ ProcessMemory ReadProcessMemory() {
 #endif
 }
 
-std::size_t ParseSize(std::string_view text, const char* option_name) {
+std::size_t parse_size(std::string_view text, const char* option_name) {
 	std::size_t result = 0;
 	const char* const begin = text.data();
 	const char* const end = begin + text.size();
@@ -98,8 +98,8 @@ std::size_t ParseSize(std::string_view text, const char* option_name) {
 	return result;
 }
 
-Options ParseOptions(int argc, char* argv[]) {
-	Options options;
+benchmark_options parse_options(int argc, char* argv[]) {
+	benchmark_options options;
 	for (int index = 1; index < argc; ++index) {
 		const std::string_view argument(argv[index]);
 		if (argument == "--help") {
@@ -123,9 +123,9 @@ Options ParseOptions(int argc, char* argv[]) {
 		} else if (argument == "--workload") {
 			options.workload = value;
 		} else if (argument == "--iterations") {
-			options.iterations = ParseSize(value, "--iterations");
+			options.iterations = parse_size(value, "--iterations");
 		} else if (argument == "--synthetic-count") {
-			options.synthetic_count = ParseSize(value, "--synthetic-count");
+			options.synthetic_count = parse_size(value, "--synthetic-count");
 		} else {
 			throw std::invalid_argument("unknown option: " + std::string(argument));
 		}
@@ -141,13 +141,13 @@ Options ParseOptions(int argc, char* argv[]) {
 	return options;
 }
 
-std::vector<ServiceRecord> LoadDataset(const std::string& path) {
+std::vector<service_record> load_dataset(const std::string& path) {
 	std::ifstream input(path, std::ios::binary);
 	if (!input) {
 		throw std::runtime_error("failed to open dataset: " + path);
 	}
 
-	std::vector<ServiceRecord> records;
+	std::vector<service_record> records;
 	std::string line;
 	std::size_t line_number = 0;
 	while (std::getline(input, line)) {
@@ -166,7 +166,7 @@ std::vector<ServiceRecord> LoadDataset(const std::string& path) {
 		}
 
 		const std::size_t separator = line.find('\t');
-		ServiceRecord record;
+		service_record record;
 		if (separator == std::string::npos) {
 			record.key = std::move(line);
 			record.value = static_cast<int64_t>(line_number);
@@ -191,35 +191,35 @@ std::vector<ServiceRecord> LoadDataset(const std::string& path) {
 	return records;
 }
 
-std::vector<ServiceRecord> GenerateSyntheticDataset(std::size_t count) {
-	constexpr std::string_view kSignals[] = {
+std::vector<service_record> generate_synthetic_dataset(std::size_t count) {
+	constexpr std::string_view k_signals[] = {
 		"STATUS", "VALUE", "QUALITY", "ALARM.HIGH", "ALARM.LOW", "TIMESTAMP"};
-	std::vector<ServiceRecord> records;
+	std::vector<service_record> records;
 	records.reserve(count);
 	for (std::size_t index = 0; index < count; ++index) {
 		std::string key = "PLANT." + std::to_string(index % 8) + ".AREA." +
 			std::to_string(index % 128) + ".DEVICE." + std::to_string(index / 6) +
-			"." + std::string(kSignals[index % std::size(kSignals)]);
+			"." + std::string(k_signals[index % std::size(k_signals)]);
 		records.push_back({std::move(key), static_cast<int64_t>(index)});
 	}
 	return records;
 }
 
 template <typename Map, typename Key>
-BenchmarkResult RunReservedBenchmark(const std::vector<Key>& keys) {
+benchmark_result run_reserved_benchmark(const std::vector<Key>& keys) {
 	Map map;
 	if constexpr (requires(Map& candidate) { candidate.max_load_factor(0.875F); }) {
 		map.max_load_factor(0.875F);
 	}
 	map.reserve(keys.size());
 
-	const ProcessMemory baseline = ReadProcessMemory();
+	const process_memory baseline = read_process_memory();
 	const auto start = std::chrono::steady_clock::now();
 	for (std::size_t index = 0; index < keys.size(); ++index) {
 		map.insert_or_assign(keys[index], static_cast<int64_t>(index));
 	}
 	const auto insert_end = std::chrono::steady_clock::now();
-	const ProcessMemory after_insert = ReadProcessMemory();
+	const process_memory after_insert = read_process_memory();
 
 	int64_t sum = 0;
 	for (const Key& key : keys) {
@@ -244,20 +244,20 @@ BenchmarkResult RunReservedBenchmark(const std::vector<Key>& keys) {
 }
 
 template <typename Set, typename Key>
-BenchmarkResult RunReservedSetBenchmark(const std::vector<Key>& keys) {
+benchmark_result run_reserved_set_benchmark(const std::vector<Key>& keys) {
 	Set set;
 	if constexpr (requires(Set& candidate) { candidate.max_load_factor(0.875F); }) {
 		set.max_load_factor(0.875F);
 	}
 	set.reserve(keys.size());
 
-	const ProcessMemory baseline = ReadProcessMemory();
+	const process_memory baseline = read_process_memory();
 	const auto start = std::chrono::steady_clock::now();
 	for (const Key& key : keys) {
 		set.insert(key);
 	}
 	const auto insert_end = std::chrono::steady_clock::now();
-	const ProcessMemory after_insert = ReadProcessMemory();
+	const process_memory after_insert = read_process_memory();
 
 	int64_t sum = 0;
 	for (const Key& key : keys) {
@@ -281,7 +281,7 @@ BenchmarkResult RunReservedSetBenchmark(const std::vector<Key>& keys) {
 }
 
 template <typename Map>
-BenchmarkResult RunServiceBenchmark(const std::vector<ServiceRecord>& records,
+benchmark_result run_service_benchmark(const std::vector<service_record>& records,
 	const std::vector<std::string>& missing_keys, std::size_t iterations) {
 	Map map;
 	if constexpr (requires(Map& candidate) { candidate.max_load_factor(0.875F); }) {
@@ -289,17 +289,17 @@ BenchmarkResult RunServiceBenchmark(const std::vector<ServiceRecord>& records,
 	}
 	map.reserve(records.size());
 
-	const ProcessMemory baseline = ReadProcessMemory();
+	const process_memory baseline = read_process_memory();
 	const auto start = std::chrono::steady_clock::now();
-	for (const ServiceRecord& record : records) {
+	for (const service_record& record : records) {
 		map.insert_or_assign(record.key, record.value);
 	}
 	const auto insert_end = std::chrono::steady_clock::now();
-	const ProcessMemory after_insert = ReadProcessMemory();
+	const process_memory after_insert = read_process_memory();
 
 	int64_t sum = 0;
 	for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
-		for (const ServiceRecord& record : records) {
+		for (const service_record& record : records) {
 			const auto iterator = map.find(record.key);
 			if (iterator != map.end()) {
 				sum += iterator->second;
@@ -338,7 +338,7 @@ BenchmarkResult RunServiceBenchmark(const std::vector<ServiceRecord>& records,
 }
 
 template <typename Set>
-BenchmarkResult RunServiceSetBenchmark(const std::vector<ServiceRecord>& records,
+benchmark_result run_service_set_benchmark(const std::vector<service_record>& records,
 	const std::vector<std::string>& missing_keys, std::size_t iterations) {
 	Set set;
 	if constexpr (requires(Set& candidate) { candidate.max_load_factor(0.875F); }) {
@@ -346,17 +346,17 @@ BenchmarkResult RunServiceSetBenchmark(const std::vector<ServiceRecord>& records
 	}
 	set.reserve(records.size());
 
-	const ProcessMemory baseline = ReadProcessMemory();
+	const process_memory baseline = read_process_memory();
 	const auto start = std::chrono::steady_clock::now();
-	for (const ServiceRecord& record : records) {
+	for (const service_record& record : records) {
 		set.insert(record.key);
 	}
 	const auto insert_end = std::chrono::steady_clock::now();
-	const ProcessMemory after_insert = ReadProcessMemory();
+	const process_memory after_insert = read_process_memory();
 
 	int64_t sum = 0;
 	for (std::size_t iteration = 0; iteration < iterations; ++iteration) {
-		for (const ServiceRecord& record : records) {
+		for (const service_record& record : records) {
 			if (set.find(record.key) != set.end()) {
 				++sum;
 			}
@@ -393,7 +393,7 @@ BenchmarkResult RunServiceSetBenchmark(const std::vector<ServiceRecord>& records
 	};
 }
 
-void PrintResult(const char* name, const BenchmarkResult& result, bool extended = false) {
+void print_result(const char* name, const benchmark_result& result, bool extended = false) {
 	std::cout << ' ' << name << " -> Insert: " << result.insert_ms
 		<< " ms | Find: " << result.find_ms << " ms";
 	if (extended) {
@@ -407,47 +407,47 @@ void PrintResult(const char* name, const BenchmarkResult& result, bool extended 
 
 int main(int argc, char* argv[]) {
 	try {
-		const Options options = ParseOptions(argc, argv);
+		const benchmark_options options = parse_options(argc, argv);
 		std::cout << "===========================================\n";
 		std::cout << " [Benchmark] NovaContainers vs standard containers\n";
 		std::cout << "===========================================\n";
 
 		if (options.workload != "service") {
-			constexpr int kCount = 1000000;
+			constexpr int k_count = 1000000;
 			std::vector<int> integer_keys;
-			integer_keys.reserve(kCount);
-			for (int index = 0; index < kCount; ++index) {
+			integer_keys.reserve(k_count);
+			for (int index = 0; index < k_count; ++index) {
 				integer_keys.push_back(index);
 			}
 
 			std::cout << "\n[Reserved 87.5% load target, int keys]\n";
 			if (options.implementation != "nova") {
-				PrintResult("std::unordered_map",
-					RunReservedBenchmark<std::unordered_map<int, int64_t>>(integer_keys));
+				print_result("std::unordered_map",
+					run_reserved_benchmark<std::unordered_map<int, int64_t>>(integer_keys));
 			}
 			if (options.implementation != "std") {
-				PrintResult("nova::hash_map    ",
-					RunReservedBenchmark<nova::hash_map<int, int64_t>>(integer_keys));
+				print_result("nova::hash_map    ",
+					run_reserved_benchmark<nova::hash_map<int, int64_t>>(integer_keys));
 			}
 
 			std::cout << "\n[Reserved 87.5% load target, int set keys]\n";
 			if (options.implementation != "nova") {
-				PrintResult("std::unordered_set",
-					RunReservedSetBenchmark<std::unordered_set<int>>(integer_keys));
+				print_result("std::unordered_set",
+					run_reserved_set_benchmark<std::unordered_set<int>>(integer_keys));
 			}
 			if (options.implementation != "std") {
-				PrintResult("nova::hash_set    ",
-					RunReservedSetBenchmark<nova::hash_set<int>>(integer_keys));
+				print_result("nova::hash_set    ",
+					run_reserved_set_benchmark<nova::hash_set<int>>(integer_keys));
 			}
 		}
 
 		if (options.workload != "int") {
-			std::vector<ServiceRecord> records = options.dataset_path.empty()
-				? GenerateSyntheticDataset(options.synthetic_count)
-				: LoadDataset(options.dataset_path);
+			std::vector<service_record> records = options.dataset_path.empty()
+				? generate_synthetic_dataset(options.synthetic_count)
+				: load_dataset(options.dataset_path);
 			std::vector<std::string> missing_keys;
 			missing_keys.reserve(records.size());
-			for (const ServiceRecord& record : records) {
+			for (const service_record& record : records) {
 				missing_keys.push_back(record.key + ".MISSING");
 			}
 
@@ -459,25 +459,25 @@ int main(int argc, char* argv[]) {
 					: options.dataset_path)
 				<< '\n';
 			if (options.implementation != "nova") {
-				PrintResult("std::unordered_map",
-					RunServiceBenchmark<std::unordered_map<std::string, int64_t>>(
+				print_result("std::unordered_map",
+					run_service_benchmark<std::unordered_map<std::string, int64_t>>(
 						records, missing_keys, options.iterations), true);
 			}
 			if (options.implementation != "std") {
-				PrintResult("nova::hash_map    ",
-					RunServiceBenchmark<nova::hash_map<std::string, int64_t>>(
+				print_result("nova::hash_map    ",
+					run_service_benchmark<nova::hash_map<std::string, int64_t>>(
 						records, missing_keys, options.iterations), true);
 			}
 
 			std::cout << "\n[Service-shaped string set workload]\n";
 			if (options.implementation != "nova") {
-				PrintResult("std::unordered_set",
-					RunServiceSetBenchmark<std::unordered_set<std::string>>(
+				print_result("std::unordered_set",
+					run_service_set_benchmark<std::unordered_set<std::string>>(
 						records, missing_keys, options.iterations), true);
 			}
 			if (options.implementation != "std") {
-				PrintResult("nova::hash_set    ",
-					RunServiceSetBenchmark<nova::hash_set<std::string>>(
+				print_result("nova::hash_set    ",
+					run_service_set_benchmark<nova::hash_set<std::string>>(
 						records, missing_keys, options.iterations), true);
 			}
 		}

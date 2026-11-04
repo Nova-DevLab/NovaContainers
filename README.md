@@ -1,6 +1,6 @@
 # NovaContainers
 
-NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 빠른 조회를 목표로 하는 C++20 헤더 전용 컨테이너 라이브러리입니다. open addressing 기반 `nova::hash_map`, `nova::hash_set`과 정렬된 연속 저장 기반 `nova::flat_map`, `nova::flat_set`을 제공합니다.
+NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 빠른 조회를 목표로 하는 C++20 헤더 전용 컨테이너 라이브러리입니다. open addressing 기반 `nova::hash_map`, `nova::hash_set`과 정렬된 연속 저장 기반 `nova::flat_map`, `nova::flat_set`, 양끝 확장과 임의 접근을 제공하는 블록형 `nova::list`를 제공합니다.
 
 ## 주요 특징
 
@@ -34,7 +34,7 @@ NovaContainers는 대량 데이터 처리에서 낮은 메모리 사용량과 �
 #include <iostream>
 #include <string>
 
-#include <NovaContainers/NovaContainers.hpp>
+#include <NovaContainers/nova_containers.hpp>
 
 int main() {
 	nova::hash_map<std::string, int> scores;
@@ -66,7 +66,7 @@ int main() {
 }
 ```
 
-개별 헤더인 `<NovaContainers/hash_map.hpp>`, `<NovaContainers/hash_set.hpp>`, `<NovaContainers/flat_map.hpp>`, `<NovaContainers/flat_set.hpp>`를 직접 포함해도 됩니다. 모든 타입은 소문자 이름과 PascalCase 별칭을 함께 제공하며, 새 코드에는 STL과 형태가 가까운 소문자 이름을 권장합니다.
+개별 헤더인 `<NovaContainers/hash_map.hpp>`, `<NovaContainers/hash_set.hpp>`, `<NovaContainers/flat_map.hpp>`, `<NovaContainers/flat_set.hpp>`를 직접 포함해도 됩니다. 모든 컨테이너의 공개 API와 내부 구현은 `snake_case`를 사용합니다.
 
 ## 컨테이너 선택
 
@@ -77,6 +77,18 @@ int main() {
 | 메모리 밀도와 순차 접근 성능이 최우선 | `flat_map`, `flat_set` |
 
 flat 컨테이너는 정렬된 `vector` 형태로 원소를 직접 저장합니다. 조회는 O(log N), 중간 삽입과 삭제는 O(N)입니다. 대량 입력은 개별 삽입 대신 `assign_unsorted`로 한 번에 정렬하거나, 이미 정렬된 고유 입력에는 `assign_sorted_unique`를 사용하는 것이 좋습니다.
+
+## 블록형 list
+
+`nova::list<T, Alloc, BlockBytes>`는 연결 리스트가 아닌 블록형 시퀀스입니다. O(1) 인덱스 접근, random-access iterator, 양끝 추가·삭제, 중간 및 범위 삽입·삭제, 표준 정렬을 지원합니다. 기본 블록 목표 크기는 16KiB이며, `blocks()`로 블록별 `std::span` 순회가 가능합니다.
+
+`reserve_front(n)`, `reserve_back(n)`은 해당 방향에 추가할 n개 슬롯을 확보합니다. `reserve(n)`은 전체 크기가 n개가 되도록 뒤쪽 슬롯을 확보합니다. 양끝 추가는 기존 원소 주소를 유지하지만 디렉터리 확장이나 연속·비연속 모드 전환으로 iterator가 무효화될 수 있습니다. 실제 `optimize()` 재구성은 원소 주소도 무효화합니다.
+
+`optimize()`로 원소를 하나의 연속 메인 배열에 재구성하고, 삭제 후 남은 큰 배열과 예약 블록을 반환합니다. list의 메모리 정리는 이 함수 하나로 수행하며 `shrink_to_fit()`은 제공하지 않습니다. 이후 추가는 메인 배열의 여유 공간 또는 별도 블록을 사용하며 재최적화로 다시 합칩니다. 연속 상태는 `is_contiguous()`, 연속 span은 `contiguous_view()`로 확인합니다. 일반 iterator에도 연속 상태 전용 경로를 제공합니다. [연속 재구성 설계와 실측](docs/list_optimize.md)을 참고합니다.
+
+블록 경계 처리를 내부로 옮기는 `for_each`도 제공합니다. `values.for_each([](auto& value) { value += 1; });`처럼 사용하며, 기존 range-for와 별도 성능 경로입니다. callable의 최종 상태를 반환하고 const·이동 전용 callable·예외 전파를 지원합니다.
+
+구체적인 API, 수명·예외 계약과 벤치마크는 [list 설계 문서](docs/list_design.md), 후속 실험은 [순회 성능 검토](docs/list_iteration_optimization.md)를 참고합니다.
 
 ## CMake 연동
 
@@ -105,7 +117,7 @@ cmake -S . -B build `
 
 ```text
 include/NovaContainers/
-  NovaContainers.hpp       # 집계 헤더
+  nova_containers.hpp       # 집계 헤더
   hash_map.hpp, hash_set.hpp
   flat_map.hpp, flat_set.hpp
   detail/
@@ -122,7 +134,7 @@ tests/                    # hash/ 및 flat/ 기능 테스트
 benchmarks/                # 독립 성능 측정 실행 파일
 ```
 
-공개 include 경로와 소문자/PascalCase API는 유지합니다. `detail/` 아래 파일은 내부 구현이며 직접 포함하는 외부 코드의 호환 대상이 아닙니다. 내부 설계와 변경 시 지켜야 할 조건은 [구조 문서](docs/architecture.md)에 정리되어 있습니다.
+집계 헤더는 `<NovaContainers/nova_containers.hpp>`이며 공개 API는 소문자로 통일합니다. `detail/` 아래 파일은 내부 구현이며 직접 포함하는 외부 코드의 호환 대상이 아닙니다. 내부 설계와 변경 시 지켜야 할 조건은 [구조 문서](docs/architecture.md)에 정리되어 있습니다.
 
 ## 제공 API
 
@@ -138,11 +150,11 @@ benchmarks/                # 독립 성능 측정 실행 파일
 | hash 컨테이너 | 용량 | `size`, `capacity`, `load_factor`, `reserve`, `rehash` |
 | flat 컨테이너 | 용량·일괄 구성 | `size`, `capacity`, `reserve`, `shrink_to_fit`, `assign_unsorted`, `assign_sorted_unique` |
 | 공통 | 반복 | `begin`, `end`, `cbegin`, `cend` |
-| 공통 | 상태·교환 | `get_allocator`, `Swap` |
+| 공통 | 상태·교환 | `get_allocator`, `swap` |
 
 `hash_map`과 `flat_map`은 누락 key에서 예외를 던지는 `at`도 제공합니다.
 
-PascalCase API도 호환 목적으로 함께 제공됩니다.
+이전 PascalCase 함수와 타입 별칭은 제거했습니다. 기존 호출은 대응하는 소문자 API로 변경해야 합니다.
 
 ## 빌드와 테스트
 
@@ -196,7 +208,7 @@ Release benchmark는 map과 set을 각각 표준 컨테이너와 비교합니다
 | 중간 삽입·삭제 | 연산 위치 이후 모두 무효화 |
 | 재할당, `assign_*`, `clear` | 모두 무효화 |
 
-flat 컨테이너의 순회는 comparator 기준 key 정렬 순서입니다. `flat_map` iterator는 key를 `const Key&`, mapped value를 `Value&`로 노출하므로 구조적 바인딩에는 `auto&& [key, value]` 또는 `const auto& [key, value]`를 사용합니다.
+flat 컨테이너의 순회는 comparator 기준 key 정렬 순서입니다. `flat_map` iterator는 key를 `const key_of&`, mapped value를 `Value&`로 노출하므로 구조적 바인딩에는 `auto&& [key, value]` 또는 `const auto& [key, value]`를 사용합니다.
 
 ## 현재 제약사항
 

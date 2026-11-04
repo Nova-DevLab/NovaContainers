@@ -7,3 +7,9 @@ if(WIN32)
 	)
 	target_link_libraries(nova_containers_benchmark PRIVATE Psapi)
 endif()
+
+nova_add_executable(nova_containers_list_benchmark list/benchmark_list.cpp)
+
+nova_add_executable(nova_containers_list_iteration_benchmark list/benchmark_list_iteration.cpp)
+
+nova_add_executable(nova_containers_list_optimize_benchmark list/benchmark_list_optimize.cpp)

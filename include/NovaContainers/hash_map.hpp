@@ -19,8 +19,8 @@ namespace nova::containers {
 template <typename Key, typename Value, typename Hash = std::hash<Key>,
 		  typename Eq = std::equal_to<Key>,
 		  typename Alloc = std::allocator<std::pair<const Key, Value>>>
-	requires detail::Hashable<Hash, Key> && detail::KeyEquality<Key, Eq>
-class HashMap {
+	requires detail::hashable<Hash, Key> && detail::key_equality<Key, Eq>
+class hash_map {
  public:
 	using key_type = Key;
 	using mapped_type = Value;
@@ -36,306 +36,203 @@ class HashMap {
 	using const_pointer = typename std::allocator_traits<Alloc>::const_pointer;
 
  private:
-	using Core = detail::RawHashTable<value_type, Key,
-		detail::PairFirstKeyOfValue, Hash, Eq, Alloc>;
+	using core_type = detail::raw_hash_table<value_type, Key,
+		detail::pair_first_key_of_value, Hash, Eq, Alloc>;
 
  public:
-	using iterator = typename Core::iterator;
-	using const_iterator = typename Core::const_iterator;
-	using Iterator = iterator;
-	using ConstIterator = const_iterator;
+	using iterator = typename core_type::iterator;
+	using const_iterator = typename core_type::const_iterator;
 
-	HashMap() = default;
+	hash_map() = default;
 
-	explicit HashMap(size_type initial_capacity, const Hash& hash = Hash{},
+	explicit hash_map(size_type initial_capacity, const Hash& hash = Hash{},
 		const Eq& equal = Eq{}, const Alloc& allocator = Alloc{})
 		: core_(initial_capacity, hash, equal, allocator) {}
 
-	HashMap(std::initializer_list<value_type> init, const Hash& hash = Hash{},
+	hash_map(std::initializer_list<value_type> init, const Hash& hash = Hash{},
 		const Eq& equal = Eq{}, const Alloc& allocator = Alloc{})
 		: core_(0, hash, equal, allocator) {
-		Reserve(init.size());
+		reserve(init.size());
 		for (const value_type& value : init) {
-			Insert(value);
+			insert(value);
 		}
 	}
 
-	HashMap(const HashMap&) = default;
-	HashMap(HashMap&&) = default;
-	HashMap& operator=(const HashMap&) = default;
-	HashMap& operator=(HashMap&&) = default;
-	~HashMap() = default;
+	hash_map(const hash_map&) = default;
+	hash_map(hash_map&&) = default;
+	hash_map& operator=(const hash_map&) = default;
+	hash_map& operator=(hash_map&&) = default;
+	~hash_map() = default;
 
-	[[nodiscard]] size_type Size() const noexcept { return core_.Size(); }
-	[[nodiscard]] size_type Capacity() const noexcept { return core_.Capacity(); }
-	[[nodiscard]] bool Empty() const noexcept { return core_.Empty(); }
-	[[nodiscard]] float LoadFactor() const noexcept { return core_.LoadFactor(); }
-	[[nodiscard]] constexpr float MaxLoadFactor() const noexcept {
-		return core_.MaxLoadFactor();
-	}
-	[[nodiscard]] allocator_type GetAllocator() const {
-		return core_.GetAllocator();
-	}
-
-	[[nodiscard]] size_type Count(const Key& key) const {
-		return Contains(key) ? 1 : 0;
-	}
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	[[nodiscard]] size_type Count(const LookupKey& key) const {
-		return Contains(key) ? 1 : 0;
-	}
-
-	void Swap(HashMap& other) noexcept(noexcept(core_.Swap(other.core_))) {
-		core_.Swap(other.core_);
-	}
-
-	iterator Find(const Key& key) { return core_.Find(key); }
-	const_iterator Find(const Key& key) const { return core_.Find(key); }
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	iterator Find(const LookupKey& key) {
-		return core_.Find(key);
-	}
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	const_iterator Find(const LookupKey& key) const {
-		return core_.Find(key);
-	}
-
-	[[nodiscard]] bool Contains(const Key& key) const {
-		return core_.Contains(key);
-	}
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	[[nodiscard]] bool Contains(const LookupKey& key) const {
-		return core_.Contains(key);
-	}
-
-	Value& At(const Key& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
-			throw std::out_of_range("nova::HashMap::At: key not found");
-		}
-		return position->second;
-	}
-
-	const Value& At(const Key& key) const {
-		const const_iterator position = Find(key);
-		if (position == End()) {
-			throw std::out_of_range("nova::HashMap::At: key not found");
-		}
-		return position->second;
-	}
-
-	template <typename... Args>
-	std::pair<iterator, bool> Emplace(Args&&... args) {
-		value_type value(std::forward<Args>(args)...);
-		return core_.Insert(std::move(value));
-	}
-
-	template <typename... Args>
-	std::pair<iterator, bool> TryEmplace(const Key& key, Args&&... args) {
-		return core_.InsertWithKey(key, [&](value_type* destination) {
-			std::construct_at(destination, std::piecewise_construct,
-				std::forward_as_tuple(key),
-				std::forward_as_tuple(std::forward<Args>(args)...));
-		});
-	}
-
-	template <typename... Args>
-	std::pair<iterator, bool> TryEmplace(Key&& key, Args&&... args) {
-		return core_.InsertWithKey(key, [&](value_type* destination) {
-			std::construct_at(destination, std::piecewise_construct,
-				std::forward_as_tuple(std::move(key)),
-				std::forward_as_tuple(std::forward<Args>(args)...));
-		});
-	}
-
-	std::pair<iterator, bool> Insert(const value_type& value) {
-		return core_.Insert(value);
-	}
-
-	std::pair<iterator, bool> Insert(value_type&& value) {
-		return core_.Insert(std::move(value));
-	}
-
-	template <typename M>
-	std::pair<iterator, bool> InsertOrAssign(const Key& key, M&& value) {
-		auto result = core_.InsertWithKey(key, [&](value_type* destination) {
-			std::construct_at(destination, std::piecewise_construct,
-				std::forward_as_tuple(key),
-				std::forward_as_tuple(std::forward<M>(value)));
-		});
-		if (!result.second) {
-			result.first->second = std::forward<M>(value);
-		}
-		return result;
-	}
-
-	template <typename M>
-	std::pair<iterator, bool> InsertOrAssign(Key&& key, M&& value) {
-		auto result = core_.InsertWithKey(key, [&](value_type* destination) {
-			std::construct_at(destination, std::piecewise_construct,
-				std::forward_as_tuple(std::move(key)),
-				std::forward_as_tuple(std::forward<M>(value)));
-		});
-		if (!result.second) {
-			result.first->second = std::forward<M>(value);
-		}
-		return result;
-	}
-
-	bool Erase(const Key& key) {
-		return core_.EraseKey(key);
-	}
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	bool Erase(const LookupKey& key) {
-		return core_.EraseKey(key);
-	}
-
-	iterator Erase(iterator position) { return core_.Erase(position); }
-	iterator Erase(const_iterator position) { return core_.Erase(position); }
-	void Clear() noexcept { core_.Clear(); }
-	void Reserve(size_type element_count) { core_.Reserve(element_count); }
-	void Rehash(size_type bucket_count) { core_.Rehash(bucket_count); }
-
-	iterator Begin() noexcept { return core_.Begin(); }
-	iterator End() noexcept { return core_.End(); }
-	const_iterator Begin() const noexcept { return core_.Begin(); }
-	const_iterator End() const noexcept { return core_.End(); }
-
-	[[nodiscard]] size_type size() const noexcept { return Size(); }
-	[[nodiscard]] size_type capacity() const noexcept { return Capacity(); }
-	[[nodiscard]] bool empty() const noexcept { return Empty(); }
-	[[nodiscard]] size_type count(const Key& key) const { return Count(key); }
-
-	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
-	[[nodiscard]] size_type count(const LookupKey& key) const {
-		return Count(key);
-	}
-
-	[[nodiscard]] float load_factor() const noexcept { return LoadFactor(); }
+	[[nodiscard]] size_type size() const noexcept { return core_.size(); }
+	[[nodiscard]] size_type capacity() const noexcept { return core_.capacity(); }
+	[[nodiscard]] bool empty() const noexcept { return core_.empty(); }
+	[[nodiscard]] float load_factor() const noexcept { return core_.load_factor(); }
 	[[nodiscard]] constexpr float max_load_factor() const noexcept {
-		return MaxLoadFactor();
+		return core_.max_load_factor();
 	}
 	[[nodiscard]] allocator_type get_allocator() const {
-		return GetAllocator();
+		return core_.get_allocator();
 	}
 
-	iterator begin() noexcept { return Begin(); }
-	iterator end() noexcept { return End(); }
-	const_iterator begin() const noexcept { return Begin(); }
-	const_iterator end() const noexcept { return End(); }
-	const_iterator cbegin() const noexcept { return core_.CBegin(); }
-	const_iterator cend() const noexcept { return core_.CEnd(); }
-
-	iterator find(const Key& key) { return Find(key); }
-	const_iterator find(const Key& key) const { return Find(key); }
+	[[nodiscard]] size_type count(const Key& key) const {
+		return contains(key) ? 1 : 0;
+	}
 
 	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
+		requires detail::heterogeneous_hash_lookup<Hash, Eq, Key, LookupKey>
+	[[nodiscard]] size_type count(const LookupKey& key) const {
+		return contains(key) ? 1 : 0;
+	}
+
+	void swap(hash_map& other) noexcept(noexcept(core_.swap(other.core_))) {
+		core_.swap(other.core_);
+	}
+
+	iterator find(const Key& key) { return core_.find(key); }
+	const_iterator find(const Key& key) const { return core_.find(key); }
+
+	template <typename LookupKey>
+		requires detail::heterogeneous_hash_lookup<Hash, Eq, Key, LookupKey>
 	iterator find(const LookupKey& key) {
-		return Find(key);
+		return core_.find(key);
 	}
 
 	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
+		requires detail::heterogeneous_hash_lookup<Hash, Eq, Key, LookupKey>
 	const_iterator find(const LookupKey& key) const {
-		return Find(key);
+		return core_.find(key);
 	}
 
-	[[nodiscard]] bool contains(const Key& key) const { return Contains(key); }
+	[[nodiscard]] bool contains(const Key& key) const {
+		return core_.contains(key);
+	}
 
 	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
+		requires detail::heterogeneous_hash_lookup<Hash, Eq, Key, LookupKey>
 	[[nodiscard]] bool contains(const LookupKey& key) const {
-		return Contains(key);
+		return core_.contains(key);
 	}
 
-	Value& at(const Key& key) { return At(key); }
-	const Value& at(const Key& key) const { return At(key); }
+	Value& at(const Key& key) {
+		const iterator position = find(key);
+		if (position == end()) {
+			throw std::out_of_range("nova::hash_map::at: key not found");
+		}
+		return position->second;
+	}
+
+	const Value& at(const Key& key) const {
+		const const_iterator position = find(key);
+		if (position == end()) {
+			throw std::out_of_range("nova::hash_map::at: key not found");
+		}
+		return position->second;
+	}
 
 	template <typename... Args>
 	std::pair<iterator, bool> emplace(Args&&... args) {
-		return Emplace(std::forward<Args>(args)...);
+		value_type value(std::forward<Args>(args)...);
+		return core_.insert(std::move(value));
 	}
 
 	template <typename... Args>
 	std::pair<iterator, bool> try_emplace(const Key& key, Args&&... args) {
-		return TryEmplace(key, std::forward<Args>(args)...);
+		return core_.insert_with_key(key, [&](value_type* destination) {
+			std::construct_at(destination, std::piecewise_construct,
+				std::forward_as_tuple(key),
+				std::forward_as_tuple(std::forward<Args>(args)...));
+		});
 	}
 
 	template <typename... Args>
 	std::pair<iterator, bool> try_emplace(Key&& key, Args&&... args) {
-		return TryEmplace(std::move(key), std::forward<Args>(args)...);
+		return core_.insert_with_key(key, [&](value_type* destination) {
+			std::construct_at(destination, std::piecewise_construct,
+				std::forward_as_tuple(std::move(key)),
+				std::forward_as_tuple(std::forward<Args>(args)...));
+		});
 	}
 
 	std::pair<iterator, bool> insert(const value_type& value) {
-		return Insert(value);
+		return core_.insert(value);
 	}
 
 	std::pair<iterator, bool> insert(value_type&& value) {
-		return Insert(std::move(value));
+		return core_.insert(std::move(value));
 	}
 
 	template <typename M>
 	std::pair<iterator, bool> insert_or_assign(const Key& key, M&& value) {
-		return InsertOrAssign(key, std::forward<M>(value));
+		auto result = core_.insert_with_key(key, [&](value_type* destination) {
+			std::construct_at(destination, std::piecewise_construct,
+				std::forward_as_tuple(key),
+				std::forward_as_tuple(std::forward<M>(value)));
+		});
+		if (!result.second) {
+			result.first->second = std::forward<M>(value);
+		}
+		return result;
 	}
 
 	template <typename M>
 	std::pair<iterator, bool> insert_or_assign(Key&& key, M&& value) {
-		return InsertOrAssign(std::move(key), std::forward<M>(value));
+		auto result = core_.insert_with_key(key, [&](value_type* destination) {
+			std::construct_at(destination, std::piecewise_construct,
+				std::forward_as_tuple(std::move(key)),
+				std::forward_as_tuple(std::forward<M>(value)));
+		});
+		if (!result.second) {
+			result.first->second = std::forward<M>(value);
+		}
+		return result;
 	}
 
-	bool erase(const Key& key) { return Erase(key); }
+	bool erase(const Key& key) {
+		return core_.erase_key(key);
+	}
 
 	template <typename LookupKey>
-		requires detail::HeterogeneousHashLookup<Hash, Eq, Key, LookupKey>
+		requires detail::heterogeneous_hash_lookup<Hash, Eq, Key, LookupKey>
 	bool erase(const LookupKey& key) {
-		return Erase(key);
+		return core_.erase_key(key);
 	}
 
-	iterator erase(iterator position) { return Erase(position); }
-	iterator erase(const_iterator position) { return Erase(position); }
-	void clear() noexcept { Clear(); }
-	void reserve(size_type element_count) { Reserve(element_count); }
-	void rehash(size_type bucket_count) { Rehash(bucket_count); }
+	iterator erase(iterator position) { return core_.erase(position); }
+	iterator erase(const_iterator position) { return core_.erase(position); }
+	void clear() noexcept { core_.clear(); }
+	void reserve(size_type element_count) { core_.reserve(element_count); }
+	void rehash(size_type bucket_count) { core_.rehash(bucket_count); }
+
+	iterator begin() noexcept { return core_.begin(); }
+	iterator end() noexcept { return core_.end(); }
+	const_iterator begin() const noexcept { return core_.begin(); }
+	const_iterator end() const noexcept { return core_.end(); }
+
+	const_iterator cbegin() const noexcept { return core_.cbegin(); }
+	const_iterator cend() const noexcept { return core_.cend(); }
 
 	Value& operator[](const Key& key) {
-		return TryEmplace(key).first->second;
+		return try_emplace(key).first->second;
 	}
 
 	Value& operator[](Key&& key) {
-		return TryEmplace(std::move(key)).first->second;
+		return try_emplace(std::move(key)).first->second;
 	}
 
  private:
-	Core core_;
+	core_type core_;
 };
 
-}  // namespace nova::containers
+}  // 네임스페이스 nova::containers
 
 namespace nova {
 
 template <typename Key, typename Value, typename Hash = std::hash<Key>,
 		  typename Eq = std::equal_to<Key>,
 		  typename Alloc = std::allocator<std::pair<const Key, Value>>>
-using hash_map = containers::HashMap<Key, Value, Hash, Eq, Alloc>;
+using hash_map = containers::hash_map<Key, Value, Hash, Eq, Alloc>;
 
-template <typename Key, typename Value, typename Hash = std::hash<Key>,
-		  typename Eq = std::equal_to<Key>,
-		  typename Alloc = std::allocator<std::pair<const Key, Value>>>
-using HashMap = containers::HashMap<Key, Value, Hash, Eq, Alloc>;
-
-}  // namespace nova
+}  // 네임스페이스 nova
 
 #endif  // NOVA_CONTAINERS_HASH_MAP_HPP_

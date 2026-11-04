@@ -9,53 +9,50 @@
 
 namespace nova::containers::detail {
 
-template <typename Core, typename Owner, bool IsConst>
-class FlatMapIterator {
+template <typename core_type, typename Owner, bool IsConst>
+class flat_map_iterator {
  private:
-	using CoreIterator = std::conditional_t<IsConst,
-		typename Core::const_iterator, typename Core::iterator>;
+	using core_iterator = std::conditional_t<IsConst,
+		typename core_type::const_iterator, typename core_type::iterator>;
 
  public:
 	using iterator_category = std::random_access_iterator_tag;
 	using iterator_concept = std::random_access_iterator_tag;
-	using value_type = typename Core::value_type;
+	using value_type = typename core_type::value_type;
 	using difference_type = std::ptrdiff_t;
 	using mapped_reference =
 		std::conditional_t<IsConst,
 			const typename value_type::second_type&, typename value_type::second_type&>;
 
-	struct Reference {
-		const typename Core::key_type& first;
+	struct reference {
+		const typename core_type::key_type& first;
 		mapped_reference second;
 
 		operator value_type() const
-			requires std::copy_constructible<typename Core::key_type> &&
+			requires std::copy_constructible<typename core_type::key_type> &&
 				std::copy_constructible<typename value_type::second_type> {
 			return value_type(first, second);
 		}
 	};
 
-	class Pointer {
+	class pointer {
 	 public:
-		explicit Pointer(Reference reference) noexcept
+		explicit pointer(reference reference) noexcept
 			: reference_(reference) {}
 
-		const Reference* operator->() const noexcept { return &reference_; }
+		const reference* operator->() const noexcept { return &reference_; }
 
 	 private:
-		Reference reference_;
+		reference reference_;
 	};
 
-	using reference = Reference;
-	using pointer = Pointer;
-
-	FlatMapIterator() noexcept = default;
-	FlatMapIterator(const FlatMapIterator&) noexcept = default;
-	FlatMapIterator& operator=(const FlatMapIterator&) noexcept = default;
+	flat_map_iterator() noexcept = default;
+	flat_map_iterator(const flat_map_iterator&) noexcept = default;
+	flat_map_iterator& operator=(const flat_map_iterator&) noexcept = default;
 
 	template <bool OtherConst>
 		requires (IsConst && !OtherConst)
-	FlatMapIterator(const FlatMapIterator<Core, Owner, OtherConst>& other) noexcept
+	flat_map_iterator(const flat_map_iterator<core_type, Owner, OtherConst>& other) noexcept
 		: iterator_(other.iterator_) {}
 
 	reference operator*() const noexcept {
@@ -64,52 +61,52 @@ class FlatMapIterator {
 
 	pointer operator->() const noexcept { return pointer(operator*()); }
 
-	FlatMapIterator& operator++() noexcept {
+	flat_map_iterator& operator++() noexcept {
 		++iterator_;
 		return *this;
 	}
 
-	FlatMapIterator operator++(int) noexcept {
-		FlatMapIterator copy = *this;
+	flat_map_iterator operator++(int) noexcept {
+		flat_map_iterator copy = *this;
 		++(*this);
 		return copy;
 	}
 
-	FlatMapIterator& operator--() noexcept {
+	flat_map_iterator& operator--() noexcept {
 		--iterator_;
 		return *this;
 	}
 
-	FlatMapIterator operator--(int) noexcept {
-		FlatMapIterator copy = *this;
+	flat_map_iterator operator--(int) noexcept {
+		flat_map_iterator copy = *this;
 		--(*this);
 		return copy;
 	}
 
-	FlatMapIterator& operator+=(difference_type offset) noexcept {
+	flat_map_iterator& operator+=(difference_type offset) noexcept {
 		iterator_ += offset;
 		return *this;
 	}
 
-	FlatMapIterator& operator-=(difference_type offset) noexcept {
+	flat_map_iterator& operator-=(difference_type offset) noexcept {
 		iterator_ -= offset;
 		return *this;
 	}
 
-	FlatMapIterator operator+(difference_type offset) const noexcept {
-		FlatMapIterator copy = *this;
+	flat_map_iterator operator+(difference_type offset) const noexcept {
+		flat_map_iterator copy = *this;
 		copy += offset;
 		return copy;
 	}
 
-	FlatMapIterator operator-(difference_type offset) const noexcept {
-		FlatMapIterator copy = *this;
+	flat_map_iterator operator-(difference_type offset) const noexcept {
+		flat_map_iterator copy = *this;
 		copy -= offset;
 		return copy;
 	}
 
-	friend FlatMapIterator operator+(
-		difference_type offset, FlatMapIterator iterator) noexcept {
+	friend flat_map_iterator operator+(
+		difference_type offset, flat_map_iterator iterator) noexcept {
 		return iterator + offset;
 	}
 
@@ -120,32 +117,32 @@ class FlatMapIterator {
 
 	template <bool OtherConst>
 	difference_type operator-(
-		const FlatMapIterator<Core, Owner, OtherConst>& other) const noexcept {
+		const flat_map_iterator<core_type, Owner, OtherConst>& other) const noexcept {
 		return iterator_ - other.iterator_;
 	}
 
 	template <bool OtherConst>
 	bool operator==(
-		const FlatMapIterator<Core, Owner, OtherConst>& other) const noexcept {
+		const flat_map_iterator<core_type, Owner, OtherConst>& other) const noexcept {
 		return iterator_ == other.iterator_;
 	}
 
 	template <bool OtherConst>
 	auto operator<=>(
-		const FlatMapIterator<Core, Owner, OtherConst>& other) const noexcept {
+		const flat_map_iterator<core_type, Owner, OtherConst>& other) const noexcept {
 		return iterator_ <=> other.iterator_;
 	}
 
  private:
-	explicit FlatMapIterator(CoreIterator iterator) noexcept
+	explicit flat_map_iterator(core_iterator iterator) noexcept
 		: iterator_(iterator) {}
 
-	CoreIterator iterator_{};
+	core_iterator iterator_{};
 	template <typename, typename, bool>
-	friend class FlatMapIterator;
+	friend class flat_map_iterator;
 	friend Owner;
 };
 
-}  // namespace nova::containers::detail
+}  // 네임스페이스 nova::containers::detail
 
 #endif  // NOVA_CONTAINERS_DETAIL_FLAT_MAP_ITERATOR_HPP_

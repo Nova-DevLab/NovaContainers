@@ -10,15 +10,15 @@
 #include <unordered_map>
 #include <vector>
 
-#include "NovaContainers/NovaContainers.hpp"
+#include "NovaContainers/nova_containers.hpp"
 
-void Require(bool condition) {
+void require(bool condition) {
 	if (!condition) {
 		throw std::runtime_error("test requirement failed");
 	}
 }
 
-void RequireDifferential(bool condition, uint32_t seed, int operation,
+void require_differential(bool condition, uint32_t seed, int operation,
 					 const char* check) {
 	if (!condition) {
 		throw std::runtime_error(
@@ -27,95 +27,95 @@ void RequireDifferential(bool condition, uint32_t seed, int operation,
 	}
 }
 
-void TestBasicOperations() {
+void test_basic_operations() {
   std::cout << "[Test 1] Basic Operations (Insert, Find, Erase, operator[])... " << std::flush;
 
   nova::hash_map<std::string, int> map;
 
-  Require(map.empty());
-  Require(map.size() == 0);
+  require(map.empty());
+  require(map.size() == 0);
 
   // Insert test
   auto [it1, inserted1] = map.insert({"apple", 100});
-  Require(inserted1);
-  Require(it1->first == "apple");
-  Require(it1->second == 100);
-  Require(map.size() == 1);
+  require(inserted1);
+  require(it1->first == "apple");
+  require(it1->second == 100);
+  require(map.size() == 1);
 
   // Duplicate insert test
   auto [it2, inserted2] = map.insert({"apple", 200});
-  Require(!inserted2);
-  Require(it2->second == 100);
-  Require(map.size() == 1);
+  require(!inserted2);
+  require(it2->second == 100);
+  require(map.size() == 1);
 
   // operator[] test
   map["banana"] = 200;
   map["cherry"] = 300;
-  Require(map.size() == 3);
-  Require(map["apple"] == 100);
-  Require(map["banana"] == 200);
-  Require(map["cherry"] == 300);
+  require(map.size() == 3);
+  require(map["apple"] == 100);
+  require(map["banana"] == 200);
+  require(map["cherry"] == 300);
 
   // Find test
   auto find_it = map.find("banana");
-  Require(find_it != map.end());
-  Require(find_it->second == 200);
+  require(find_it != map.end());
+  require(find_it->second == 200);
 
   auto not_found_it = map.find("durian");
-  Require(not_found_it == map.end());
+  require(not_found_it == map.end());
 
   // Erase test
   bool erased = map.erase("banana");
-  Require(erased);
-  Require(map.size() == 2);
-  Require(map.find("banana") == map.end());
+  require(erased);
+  require(map.size() == 2);
+  require(map.find("banana") == map.end());
 
   bool erase_again = map.erase("banana");
-  Require(!erase_again);
+  require(!erase_again);
 
   std::cout << "PASSED!\n";
 }
 
-void TestLargeScaleRehash() {
+void test_large_scale_rehash() {
   std::cout << "[Test 2] Large-scale Insert & Rehash (100,000 items)... " << std::flush;
 
-  constexpr int kCount = 100000;
+  constexpr int k_count = 100000;
   nova::hash_map<int, int> map;
 
-  for (int i = 0; i < kCount; ++i) {
+  for (int i = 0; i < k_count; ++i) {
     map[i] = i * 2;
   }
 
-  Require(map.size() == kCount);
+  require(map.size() == k_count);
 
-  for (int i = 0; i < kCount; ++i) {
+  for (int i = 0; i < k_count; ++i) {
     auto it = map.find(i);
-    Require(it != map.end());
-    Require(it->second == i * 2);
+    require(it != map.end());
+    require(it->second == i * 2);
   }
 
   // Erase half
-  for (int i = 0; i < kCount; i += 2) {
+  for (int i = 0; i < k_count; i += 2) {
     bool erased = map.erase(i);
-    Require(erased);
+    require(erased);
   }
 
-  Require(map.size() == kCount / 2);
+  require(map.size() == k_count / 2);
 
-  for (int i = 0; i < kCount; ++i) {
+  for (int i = 0; i < k_count; ++i) {
     auto it = map.find(i);
     if (i % 2 == 0) {
-      Require(it == map.end());
+      require(it == map.end());
     } else {
-      Require(it != map.end());
-      Require(it->second == i * 2);
+      require(it != map.end());
+      require(it->second == i * 2);
     }
   }
 
   std::cout << "PASSED!\n";
 }
 
-void TestIteration() {
+void test_iteration() {
   std::cout << "[Test 3] Iteration & Range-based For Loop... " << std::flush;
 
   nova::hash_map<std::string, int> map = {
@@ -128,13 +128,13 @@ void TestIteration() {
     ++count;
   }
 
-  Require(count == 4);
-  Require(sum == 10);
+  require(count == 4);
+  require(sum == 10);
 
   std::cout << "PASSED!\n";
 }
 
-struct ThrowingHash {
+struct throwing_hash {
 	std::size_t operator()(int key) const {
 		if (key == 42) {
 			throw std::runtime_error("hash failure");
@@ -143,7 +143,7 @@ struct ThrowingHash {
 	}
 };
 
-struct ToggleThrowHash {
+struct toggle_throw_hash {
 	std::size_t operator()(int key) const {
 		if (should_throw) {
 			throw std::runtime_error("rehash hash failure");
@@ -154,11 +154,11 @@ struct ToggleThrowHash {
 	inline static bool should_throw = false;
 };
 
-struct CollisionHash {
+struct collision_hash {
 	std::size_t operator()(int) const noexcept { return 0; }
 };
 
-struct CountingHash {
+struct counting_hash {
 	std::size_t operator()(int key) const noexcept {
 		++calls;
 		return std::hash<int>{}(key);
@@ -167,8 +167,8 @@ struct CountingHash {
 	inline static std::size_t calls = 0;
 };
 
-struct ThrowOnConstruction {
-	explicit ThrowOnConstruction(int initial_value) : value(initial_value) {
+struct throw_on_construction {
+	explicit throw_on_construction(int initial_value) : value(initial_value) {
 		if (should_throw) {
 			throw std::runtime_error("construction failure");
 		}
@@ -178,7 +178,7 @@ struct ThrowOnConstruction {
 	int value;
 };
 
-struct ThrowingEquality {
+struct throwing_equality {
 	bool operator()(int left, int right) const {
 		if (should_throw) {
 			throw std::runtime_error("equality failure");
@@ -189,8 +189,8 @@ struct ThrowingEquality {
 	inline static bool should_throw = false;
 };
 
-struct SeededHash {
-	SeededHash() : seed(next_seed++ * 0x9E3779B97F4A7C15ULL) {}
+struct seeded_hash {
+	seeded_hash() : seed(next_seed++ * 0x9E3779B97F4A7C15ULL) {}
 
 	std::size_t operator()(int key) const noexcept {
 		return std::hash<int>{}(key) ^ seed;
@@ -200,30 +200,30 @@ struct SeededHash {
 	std::size_t seed;
 };
 
-struct ThrowOnCopy {
-	explicit ThrowOnCopy(int initial_value) : value(initial_value) {}
+struct copy_throwing_value {
+	explicit copy_throwing_value(int initial_value) : value(initial_value) {}
 
-	ThrowOnCopy(const ThrowOnCopy& other) : value(other.value) {
+	copy_throwing_value(const copy_throwing_value& other) : value(other.value) {
 		if (throw_on_copy) {
 			throw std::runtime_error("copy failure");
 		}
 	}
 
-	ThrowOnCopy(ThrowOnCopy&&) noexcept = default;
-	ThrowOnCopy& operator=(const ThrowOnCopy&) = default;
-	ThrowOnCopy& operator=(ThrowOnCopy&&) noexcept = default;
+	copy_throwing_value(copy_throwing_value&&) noexcept = default;
+	copy_throwing_value& operator=(const copy_throwing_value&) = default;
+	copy_throwing_value& operator=(copy_throwing_value&&) noexcept = default;
 
 	inline static bool throw_on_copy = false;
 	int value;
 };
 
-struct ThrowOnMove {
-	explicit ThrowOnMove(int initial_value) : value(initial_value) {}
+struct throw_on_move {
+	explicit throw_on_move(int initial_value) : value(initial_value) {}
 
-	ThrowOnMove(const ThrowOnMove&) = delete;
-	ThrowOnMove& operator=(const ThrowOnMove&) = delete;
+	throw_on_move(const throw_on_move&) = delete;
+	throw_on_move& operator=(const throw_on_move&) = delete;
 
-	ThrowOnMove(ThrowOnMove&& other) : value(other.value) {
+	throw_on_move(throw_on_move&& other) : value(other.value) {
 		if (moves_before_throw == 0) {
 			throw std::runtime_error("move failure");
 		}
@@ -233,37 +233,37 @@ struct ThrowOnMove {
 		other.value = -1;
 	}
 
-	ThrowOnMove& operator=(ThrowOnMove&&) = delete;
+	throw_on_move& operator=(throw_on_move&&) = delete;
 
 	inline static int moves_before_throw = -1;
 	int value;
 };
 
-struct TailProbeHash {
+struct tail_probe_hash {
 	std::size_t operator()(int) const noexcept {
-		return nova::containers::detail::Group::kWidth - 1;
+		return nova::containers::detail::group_type::k_width - 1;
 	}
 };
 
-struct ConstructionCounter {
-	explicit ConstructionCounter(int initial_value) : value(initial_value) {
+struct construction_counter {
+	explicit construction_counter(int initial_value) : value(initial_value) {
 		++construction_count;
 	}
 
-	ConstructionCounter(const ConstructionCounter& other) : value(other.value) {
+	construction_counter(const construction_counter& other) : value(other.value) {
 		++construction_count;
 	}
-	ConstructionCounter(ConstructionCounter&& other) noexcept : value(other.value) {
+	construction_counter(construction_counter&& other) noexcept : value(other.value) {
 		++construction_count;
 	}
-	ConstructionCounter& operator=(const ConstructionCounter&) = default;
-	ConstructionCounter& operator=(ConstructionCounter&&) noexcept = default;
+	construction_counter& operator=(const construction_counter&) = default;
+	construction_counter& operator=(construction_counter&&) noexcept = default;
 
 	inline static int construction_count = 0;
 	int value;
 };
 
-struct AllocatorStats {
+struct allocator_stats {
 	std::size_t allocation_count = 0;
 	std::size_t deallocation_count = 0;
 	std::size_t allocated_bytes = 0;
@@ -272,27 +272,27 @@ struct AllocatorStats {
 	std::size_t peak_allocated_bytes = 0;
 };
 
-template <typename T, bool kPropagate = false>
-class TrackingAllocator {
+template <typename T, bool k_propagate = false>
+class tracking_allocator {
  public:
 	using value_type = T;
 	using propagate_on_container_copy_assignment =
-		std::bool_constant<kPropagate>;
+		std::bool_constant<k_propagate>;
 	using propagate_on_container_move_assignment =
-		std::bool_constant<kPropagate>;
-	using propagate_on_container_swap = std::bool_constant<kPropagate>;
+		std::bool_constant<k_propagate>;
+	using propagate_on_container_swap = std::bool_constant<k_propagate>;
 	using is_always_equal = std::false_type;
 
 	template <typename U>
 	struct rebind {
-		using other = TrackingAllocator<U, kPropagate>;
+		using other = tracking_allocator<U, k_propagate>;
 	};
 
-	TrackingAllocator() noexcept = default;
-	explicit TrackingAllocator(AllocatorStats* stats) noexcept : stats_(stats) {}
+	tracking_allocator() noexcept = default;
+	explicit tracking_allocator(allocator_stats* stats) noexcept : stats_(stats) {}
 
 	template <typename U>
-	TrackingAllocator(const TrackingAllocator<U, kPropagate>& other) noexcept
+	tracking_allocator(const tracking_allocator<U, k_propagate>& other) noexcept
 		: stats_(other.stats()) {}
 
 	[[nodiscard]] T* allocate(std::size_t count) {
@@ -316,20 +316,20 @@ class TrackingAllocator {
 		std::allocator<T>{}.deallocate(pointer, count);
 	}
 
-	[[nodiscard]] AllocatorStats* stats() const noexcept { return stats_; }
+	[[nodiscard]] allocator_stats* stats() const noexcept { return stats_; }
 
 	template <typename U>
 	[[nodiscard]] bool operator==(
-		const TrackingAllocator<U, kPropagate>& other) const noexcept {
+		const tracking_allocator<U, k_propagate>& other) const noexcept {
 		return stats_ == other.stats();
 	}
 
  private:
-	AllocatorStats* stats_ = nullptr;
+	allocator_stats* stats_ = nullptr;
 };
 
 template <typename T>
-class ThrowingMoveAllocator {
+class throwing_move_allocator {
  public:
 	using value_type = T;
 	using propagate_on_container_move_assignment = std::true_type;
@@ -337,20 +337,20 @@ class ThrowingMoveAllocator {
 
 	template <typename U>
 	struct rebind {
-		using other = ThrowingMoveAllocator<U>;
+		using other = throwing_move_allocator<U>;
 	};
 
-	ThrowingMoveAllocator() noexcept = default;
-	explicit ThrowingMoveAllocator(AllocatorStats* stats) noexcept : stats_(stats) {}
-	ThrowingMoveAllocator(const ThrowingMoveAllocator&) noexcept = default;
-	ThrowingMoveAllocator(ThrowingMoveAllocator&&) noexcept = default;
+	throwing_move_allocator() noexcept = default;
+	explicit throwing_move_allocator(allocator_stats* stats) noexcept : stats_(stats) {}
+	throwing_move_allocator(const throwing_move_allocator&) noexcept = default;
+	throwing_move_allocator(throwing_move_allocator&&) noexcept = default;
 
 	template <typename U>
-	ThrowingMoveAllocator(const ThrowingMoveAllocator<U>& other) noexcept
+	throwing_move_allocator(const throwing_move_allocator<U>& other) noexcept
 		: stats_(other.stats()) {}
 
-	ThrowingMoveAllocator& operator=(const ThrowingMoveAllocator&) noexcept = default;
-	ThrowingMoveAllocator& operator=(ThrowingMoveAllocator&& other) {
+	throwing_move_allocator& operator=(const throwing_move_allocator&) noexcept = default;
+	throwing_move_allocator& operator=(throwing_move_allocator&& other) {
 		if (throw_on_move_assignment) {
 			throw std::runtime_error("allocator move assignment failure");
 		}
@@ -372,21 +372,21 @@ class ThrowingMoveAllocator {
 		std::allocator<T>{}.deallocate(pointer, count);
 	}
 
-	[[nodiscard]] AllocatorStats* stats() const noexcept { return stats_; }
+	[[nodiscard]] allocator_stats* stats() const noexcept { return stats_; }
 
 	template <typename U>
 	[[nodiscard]] bool operator==(
-		const ThrowingMoveAllocator<U>& other) const noexcept {
+		const throwing_move_allocator<U>& other) const noexcept {
 		return stats_ == other.stats();
 	}
 
 	inline static bool throw_on_move_assignment = false;
 
  private:
-	AllocatorStats* stats_ = nullptr;
+	allocator_stats* stats_ = nullptr;
 };
 
-struct ReservedTableMeasurement {
+struct reserved_table_measurement {
 	std::size_t capacity = 0;
 	std::size_t slot_bytes_per_bucket = 0;
 	std::size_t control_bytes = 0;
@@ -394,46 +394,46 @@ struct ReservedTableMeasurement {
 };
 
 template <typename Key, typename Value>
-ReservedTableMeasurement MeasureReservedTable(std::size_t element_count) {
-	using Pair = std::pair<const Key, Value>;
-	using Allocator = TrackingAllocator<Pair>;
-	using Map = nova::hash_map<Key, Value, std::hash<Key>, std::equal_to<Key>,
-						   Allocator>;
+reserved_table_measurement measure_reserved_table(std::size_t element_count) {
+	using pair_type = std::pair<const Key, Value>;
+	using allocator_type = tracking_allocator<pair_type>;
+	using map_type = nova::hash_map<Key, Value, std::hash<Key>, std::equal_to<Key>,
+						   allocator_type>;
 
-	AllocatorStats stats;
-	ReservedTableMeasurement measurement;
+	allocator_stats stats;
+	reserved_table_measurement measurement;
 	{
-		Map map(0, {}, {}, Allocator(&stats));
+		map_type map(0, {}, {}, allocator_type(&stats));
 		map.reserve(element_count);
-		Require(map.capacity() >= element_count);
-		Require(stats.allocation_count == 1);
-		Require(stats.allocated_bytes % map.capacity() == 0);
+		require(map.capacity() >= element_count);
+		require(stats.allocation_count == 1);
+		require(stats.allocated_bytes % map.capacity() == 0);
 
 		measurement.capacity = map.capacity();
 		measurement.slot_bytes_per_bucket =
 			stats.allocated_bytes / map.capacity();
 		measurement.control_bytes =
-			map.capacity() + nova::containers::detail::Group::kWidth;
+			map.capacity() + nova::containers::detail::group_type::k_width;
 		measurement.table_bytes = stats.allocated_bytes + measurement.control_bytes;
 	}
 
-	Require(stats.allocation_count == stats.deallocation_count);
-	Require(stats.allocated_bytes == stats.deallocated_bytes);
-	Require(stats.current_allocated_bytes == 0);
+	require(stats.allocation_count == stats.deallocation_count);
+	require(stats.allocated_bytes == stats.deallocated_bytes);
+	require(stats.current_allocated_bytes == 0);
 	return measurement;
 }
 
-using TrackedString =
-	std::basic_string<char, std::char_traits<char>, TrackingAllocator<char>>;
+using tracked_string =
+	std::basic_string<char, std::char_traits<char>, tracking_allocator<char>>;
 
-struct TrackedStringHash {
-	std::size_t operator()(const TrackedString& value) const noexcept {
+struct tracked_string_hash {
+	std::size_t operator()(const tracked_string& value) const noexcept {
 		return std::hash<std::string_view>{}(
 			std::string_view(value.data(), value.size()));
 	}
 };
 
-struct TransparentStringHash {
+struct transparent_string_hash {
 	using is_transparent = void;
 
 	std::size_t operator()(std::string_view value) const noexcept {
@@ -441,7 +441,7 @@ struct TransparentStringHash {
 	}
 };
 
-struct TransparentStringEqual {
+struct transparent_string_equal {
 	using is_transparent = void;
 
 	bool operator()(std::string_view left, std::string_view right) const noexcept {
@@ -449,16 +449,16 @@ struct TransparentStringEqual {
 	}
 };
 
-void TestConstLookupAndBoundsChecking() {
+void test_const_lookup_and_bounds_checking() {
 	std::cout << "[Test 4] Const lookup, contains, and at... " << std::flush;
 
 	const nova::hash_map<std::string, int> map = {{"answer", 42}};
 	const auto iterator = map.find("answer");
-	Require(iterator != map.end());
-	Require(iterator->second == 42);
-	Require(map.contains("answer"));
-	Require(!map.contains("missing"));
-	Require(map.at("answer") == 42);
+	require(iterator != map.end());
+	require(iterator->second == 42);
+	require(map.contains("answer"));
+	require(!map.contains("missing"));
+	require(map.at("answer") == 42);
 
 	bool did_throw = false;
 	try {
@@ -466,15 +466,15 @@ void TestConstLookupAndBoundsChecking() {
 	} catch (const std::out_of_range&) {
 		did_throw = true;
 	}
-	Require(did_throw);
+	require(did_throw);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestHashExceptionsPropagate() {
+void test_hash_exceptions_propagate() {
 	std::cout << "[Test 5] Hash exceptions propagate... " << std::flush;
 
-	nova::hash_map<int, int, ThrowingHash> map;
+	nova::hash_map<int, int, throwing_hash> map;
 	map.insert({1, 10});
 	bool did_throw = false;
 	try {
@@ -482,216 +482,216 @@ void TestHashExceptionsPropagate() {
 	} catch (const std::runtime_error&) {
 		did_throw = true;
 	}
-	Require(did_throw);
+	require(did_throw);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestEqualityExceptionPreservesRehashSource() {
+void test_equality_exception_preserves_rehash_source() {
 	std::cout << "[Test 6] Equality exception preserves rehash source... "
 			<< std::flush;
 
-	nova::hash_map<int, int, CollisionHash, ThrowingEquality> map;
+	nova::hash_map<int, int, collision_hash, throwing_equality> map;
 	map.insert({1, 10});
 	map.insert({2, 20});
 	const std::size_t original_capacity = map.capacity();
 
-	ThrowingEquality::should_throw = true;
+	throwing_equality::should_throw = true;
 	bool did_throw = false;
 	try {
 		map.rehash(64);
 	} catch (const std::runtime_error&) {
 		did_throw = true;
 	}
-	ThrowingEquality::should_throw = false;
+	throwing_equality::should_throw = false;
 
-	Require(did_throw);
-	Require(map.capacity() == original_capacity);
-	Require(map.size() == 2);
-	Require(map.at(1) == 10);
-	Require(map.at(2) == 20);
+	require(did_throw);
+	require(map.capacity() == original_capacity);
+	require(map.size() == 2);
+	require(map.at(1) == 10);
+	require(map.at(2) == 20);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestStatefulHashSurvivesCopyAndMove() {
+void test_stateful_hash_survives_copy_and_move() {
 	std::cout << "[Test 7] Stateful hash survives copy and move... "
 			  << std::flush;
 
-	nova::hash_map<int, int, SeededHash> source;
+	nova::hash_map<int, int, seeded_hash> source;
 	source.insert({7, 70});
 	source.insert({11, 110});
 
-	nova::hash_map<int, int, SeededHash> copied(source);
-	Require(copied.at(7) == 70);
-	Require(copied.at(11) == 110);
+	nova::hash_map<int, int, seeded_hash> copied(source);
+	require(copied.at(7) == 70);
+	require(copied.at(11) == 110);
 
-	nova::hash_map<int, int, SeededHash> moved(std::move(source));
-	Require(moved.at(7) == 70);
-	Require(moved.at(11) == 110);
+	nova::hash_map<int, int, seeded_hash> moved(std::move(source));
+	require(moved.at(7) == 70);
+	require(moved.at(11) == 110);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestRehashPreservesTableWhenCopyThrows() {
+void test_rehash_preserves_table_when_copy_throws() {
 	std::cout << "[Test 8] Failed rehash preserves the original table... "
 			  << std::flush;
 
-	nova::hash_map<int, ThrowOnCopy> map;
-	map.emplace(1, ThrowOnCopy(10));
-	map.emplace(2, ThrowOnCopy(20));
+	nova::hash_map<int, copy_throwing_value> map;
+	map.emplace(1, copy_throwing_value(10));
+	map.emplace(2, copy_throwing_value(20));
 	const std::size_t original_capacity = map.capacity();
 
-	ThrowOnCopy::throw_on_copy = true;
+	copy_throwing_value::throw_on_copy = true;
 	bool did_throw = false;
 	try {
 		map.reserve(64);
 	} catch (const std::runtime_error&) {
 		did_throw = true;
 	}
-	ThrowOnCopy::throw_on_copy = false;
+	copy_throwing_value::throw_on_copy = false;
 
-	Require(did_throw);
-	Require(map.capacity() == original_capacity);
-	Require(map.size() == 2);
-	Require(map.at(1).value == 10);
-	Require(map.at(2).value == 20);
+	require(did_throw);
+	require(map.capacity() == original_capacity);
+	require(map.size() == 2);
+	require(map.at(1).value == 10);
+	require(map.at(2).value == 20);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestMoveOnlyRehashPreservesStructuralInvariants() {
+void test_move_only_rehash_preserves_structural_invariants() {
 	std::cout << "[Test 9] Move-only rehash keeps structural invariants... "
 			<< std::flush;
 
-	ThrowOnMove::moves_before_throw = -1;
-	nova::hash_map<int, ThrowOnMove> map;
+	throw_on_move::moves_before_throw = -1;
+	nova::hash_map<int, throw_on_move> map;
 	map.try_emplace(1, 10);
 	map.try_emplace(2, 20);
 	const std::size_t original_capacity = map.capacity();
 
-	ThrowOnMove::moves_before_throw = 1;
+	throw_on_move::moves_before_throw = 1;
 	bool did_throw = false;
 	try {
 		map.rehash(64);
 	} catch (const std::runtime_error&) {
 		did_throw = true;
 	}
-	ThrowOnMove::moves_before_throw = -1;
+	throw_on_move::moves_before_throw = -1;
 
-	Require(did_throw);
-	Require(map.capacity() == original_capacity);
-	Require(map.size() == 2);
-	Require(map.find(1) != map.end());
-	Require(map.find(2) != map.end());
-	Require(map.try_emplace(3, 30).second);
-	Require(map.at(3).value == 30);
+	require(did_throw);
+	require(map.capacity() == original_capacity);
+	require(map.size() == 2);
+	require(map.find(1) != map.end());
+	require(map.find(2) != map.end());
+	require(map.try_emplace(3, 30).second);
+	require(map.at(3).value == 30);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestTombstonesAreCompactedWithoutGrowth() {
+void test_tombstones_are_compacted_without_growth() {
 	std::cout << "[Test 10] Tombstones compact without capacity growth... "
 			  << std::flush;
 
 	nova::hash_map<int, int> map;
-	constexpr int kGrowthLimit =
-		static_cast<int>(nova::containers::detail::Group::kWidth * 7 / 8);
-	constexpr int kEraseCount = kGrowthLimit / 2;
-	for (int i = 0; i < kGrowthLimit; ++i) {
+	constexpr int k_growth_limit =
+		static_cast<int>(nova::containers::detail::group_type::k_width * 7 / 8);
+	constexpr int k_erase_count = k_growth_limit / 2;
+	for (int i = 0; i < k_growth_limit; ++i) {
 		map.insert({i, i * 10});
 	}
-	Require(map.capacity() == nova::containers::detail::Group::kWidth);
+	require(map.capacity() == nova::containers::detail::group_type::k_width);
 
-	for (int i = 0; i < kEraseCount; ++i) {
-		Require(map.erase(i));
+	for (int i = 0; i < k_erase_count; ++i) {
+		require(map.erase(i));
 	}
 	map.insert({100, 1000});
 
-	Require(map.capacity() == nova::containers::detail::Group::kWidth);
-	Require(map.size() == kGrowthLimit - kEraseCount + 1);
-	for (int i = kEraseCount; i < kGrowthLimit; ++i) {
-		Require(map.at(i) == i * 10);
+	require(map.capacity() == nova::containers::detail::group_type::k_width);
+	require(map.size() == k_growth_limit - k_erase_count + 1);
+	for (int i = k_erase_count; i < k_growth_limit; ++i) {
+		require(map.at(i) == i * 10);
 	}
-	Require(map.at(100) == 1000);
+	require(map.at(100) == 1000);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestControlTailWrapAround() {
+void test_control_tail_wrap_around() {
 	std::cout << "[Test 11] Control tail wrap-around probing... " << std::flush;
 
-	nova::hash_map<int, int, TailProbeHash> map;
-	constexpr int kGrowthLimit =
-		static_cast<int>(nova::containers::detail::Group::kWidth * 7 / 8);
-	for (int i = 0; i < kGrowthLimit; ++i) {
-		Require(map.insert({i, i * 10}).second);
+	nova::hash_map<int, int, tail_probe_hash> map;
+	constexpr int k_growth_limit =
+		static_cast<int>(nova::containers::detail::group_type::k_width * 7 / 8);
+	for (int i = 0; i < k_growth_limit; ++i) {
+		require(map.insert({i, i * 10}).second);
 	}
-	Require(map.capacity() == nova::containers::detail::Group::kWidth);
+	require(map.capacity() == nova::containers::detail::group_type::k_width);
 
-	Require(map.erase(1));
-	Require(map.find(1) == map.end());
-	for (int i = 2; i < kGrowthLimit; ++i) {
-		Require(map.at(i) == i * 10);
+	require(map.erase(1));
+	require(map.find(1) == map.end());
+	for (int i = 2; i < k_growth_limit; ++i) {
+		require(map.at(i) == i * 10);
 	}
 
-	Require(map.insert({100, 1000}).second);
-	Require(map.at(100) == 1000);
-	for (int i = 2; i < kGrowthLimit; ++i) {
-		Require(map.at(i) == i * 10);
+	require(map.insert({100, 1000}).second);
+	require(map.at(100) == 1000);
+	for (int i = 2; i < k_growth_limit; ++i) {
+		require(map.at(i) == i * 10);
 	}
 
 	std::cout << "PASSED!\n";
 }
 
-void TestExtendedContainerApi() {
+void test_extended_container_api() {
 	std::cout << "[Test 12] Extended container API... " << std::flush;
 
-	ConstructionCounter::construction_count = 0;
-	nova::hash_map<int, ConstructionCounter> map;
+	construction_counter::construction_count = 0;
+	nova::hash_map<int, construction_counter> map;
 	auto [first, first_inserted] = map.try_emplace(7, 70);
-	Require(first_inserted);
-	Require(first->second.value == 70);
+	require(first_inserted);
+	require(first->second.value == 70);
 	const int construction_count_after_first =
-		ConstructionCounter::construction_count;
-	Require(construction_count_after_first > 0);
+		construction_counter::construction_count;
+	require(construction_count_after_first > 0);
 
 	auto [duplicate, duplicate_inserted] = map.try_emplace(7, 700);
-	Require(!duplicate_inserted);
-	Require(duplicate->second.value == 70);
-	Require(ConstructionCounter::construction_count == construction_count_after_first);
+	require(!duplicate_inserted);
+	require(duplicate->second.value == 70);
+	require(construction_counter::construction_count == construction_count_after_first);
 
 	auto [assigned, assigned_inserted] =
-		map.insert_or_assign(7, ConstructionCounter(71));
-	Require(!assigned_inserted);
-	Require(assigned->second.value == 71);
-	Require(map.count(7) == 1);
-	Require(map.count(8) == 0);
-	Require(map.load_factor() > 0.0F);
-	Require(map.max_load_factor() == 0.875F);
+		map.insert_or_assign(7, construction_counter(71));
+	require(!assigned_inserted);
+	require(assigned->second.value == 71);
+	require(map.count(7) == 1);
+	require(map.count(8) == 0);
+	require(map.load_factor() > 0.0F);
+	require(map.max_load_factor() == 0.875F);
 
 	map.try_emplace(8, 80);
-	const nova::hash_map<int, ConstructionCounter>::const_iterator const_it =
+	const nova::hash_map<int, construction_counter>::const_iterator const_it =
 		map.begin();
 	const int erased_key = const_it->first;
 	auto next = map.erase(const_it);
-	Require(next == map.end() || next->first != erased_key);
-	Require(map.size() == 1);
+	require(next == map.end() || next->first != erased_key);
+	require(map.size() == 1);
 
 	map.reserve(15);
-	Require(map.capacity() >= 32);
+	require(map.capacity() >= 32);
 	map.rehash(16);
-	Require(map.capacity() >= nova::containers::detail::Group::kWidth);
+	require(map.capacity() >= nova::containers::detail::group_type::k_width);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestDifferentialOperations() {
+void test_differential_operations() {
 	std::cout << "[Test 13] Differential operations against std::unordered_map... "
 			<< std::flush;
 
-	constexpr int kOperationCount = 100000;
-	constexpr int kKeyRange = 257;
+	constexpr int k_operation_count = 100000;
+	constexpr int k_key_range = 257;
 	uint32_t state = 0xC0FFEEU;
 	auto next_random = [&state]() {
 		state = state * 1664525U + 1013904223U;
@@ -700,15 +700,15 @@ void TestDifferentialOperations() {
 
 	nova::hash_map<int, int> nova_map;
 	std::unordered_map<int, int> std_map;
-	for (int operation = 0; operation < kOperationCount; ++operation) {
-		const int key = static_cast<int>(next_random() % kKeyRange);
+	for (int operation = 0; operation < k_operation_count; ++operation) {
+		const int key = static_cast<int>(next_random() % k_key_range);
 		const int value = static_cast<int>(next_random());
 		switch (next_random() % 4U) {
 			case 0: {
 				auto [nova_it, nova_inserted] = nova_map.try_emplace(key, value);
 				auto [std_it, std_inserted] = std_map.try_emplace(key, value);
-				Require(nova_inserted == std_inserted);
-				Require(nova_it->second == std_it->second);
+				require(nova_inserted == std_inserted);
+				require(nova_it->second == std_it->second);
 				break;
 			}
 			case 1: {
@@ -716,57 +716,57 @@ void TestDifferentialOperations() {
 					nova_map.insert_or_assign(key, value);
 				auto [std_it, std_inserted] =
 					std_map.insert_or_assign(key, value);
-				Require(nova_inserted == std_inserted);
-				Require(nova_it->second == std_it->second);
+				require(nova_inserted == std_inserted);
+				require(nova_it->second == std_it->second);
 				break;
 			}
 			case 2:
-				Require(nova_map.erase(key) == (std_map.erase(key) != 0));
+				require(nova_map.erase(key) == (std_map.erase(key) != 0));
 				break;
 			default: {
 				const auto nova_it = nova_map.find(key);
 				const auto std_it = std_map.find(key);
-				Require((nova_it == nova_map.end()) == (std_it == std_map.end()));
+				require((nova_it == nova_map.end()) == (std_it == std_map.end()));
 				if (nova_it != nova_map.end()) {
-					Require(nova_it->second == std_it->second);
+					require(nova_it->second == std_it->second);
 				}
 				break;
 			}
 		}
 
-		Require(nova_map.size() == std_map.size());
+		require(nova_map.size() == std_map.size());
 	}
 
 	for (const auto& [key, value] : std_map) {
 		const auto nova_it = nova_map.find(key);
-		Require(nova_it != nova_map.end());
-		Require(nova_it->second == value);
+		require(nova_it != nova_map.end());
+		require(nova_it->second == value);
 	}
 
 	std::cout << "PASSED!\n";
 }
 
-void TestCollisionStressOperations() {
+void test_collision_stress_operations() {
 	std::cout << "[Test 14] Collision stress against std::unordered_map... "
 			<< std::flush;
 
-	using NovaMap = nova::hash_map<int, int, CollisionHash>;
-	using StdMap = std::unordered_map<int, int, CollisionHash>;
-	constexpr uint32_t kSeeds[] = {0x12345678U, 0x9ABCDEF0U, 0xCAFEBABEU};
-	constexpr int kOperationCount = 50000;
-	constexpr int kKeyRange = 64;
+	using nova_map_type = nova::hash_map<int, int, collision_hash>;
+	using std_map_type = std::unordered_map<int, int, collision_hash>;
+	constexpr uint32_t k_seeds[] = {0x12345678U, 0x9ABCDEF0U, 0xCAFEBABEU};
+	constexpr int k_operation_count = 50000;
+	constexpr int k_key_range = 64;
 
-	for (const uint32_t seed : kSeeds) {
+	for (const uint32_t seed : k_seeds) {
 		uint32_t state = seed;
 		auto next_random = [&state]() {
 			state = state * 1664525U + 1013904223U;
 			return state;
 		};
 
-		NovaMap nova_map;
-		StdMap std_map;
-		for (int operation = 0; operation < kOperationCount; ++operation) {
-			const int key = static_cast<int>(next_random() % kKeyRange);
+		nova_map_type nova_map;
+		std_map_type std_map;
+		for (int operation = 0; operation < k_operation_count; ++operation) {
+			const int key = static_cast<int>(next_random() % k_key_range);
 			const int value = static_cast<int>(next_random());
 			switch (next_random() % 7U) {
 				case 0: {
@@ -774,9 +774,9 @@ void TestCollisionStressOperations() {
 						nova_map.insert_or_assign(key, value);
 					auto [std_it, std_inserted] =
 						std_map.insert_or_assign(key, value);
-					RequireDifferential(nova_inserted == std_inserted, seed,
+					require_differential(nova_inserted == std_inserted, seed,
 						operation, "insert_or_assign result");
-					RequireDifferential(nova_it->second == std_it->second, seed,
+					require_differential(nova_it->second == std_it->second, seed,
 						operation, "insert_or_assign value");
 					break;
 				}
@@ -785,14 +785,14 @@ void TestCollisionStressOperations() {
 						nova_map.try_emplace(key, value);
 					auto [std_it, std_inserted] =
 						std_map.try_emplace(key, value);
-					RequireDifferential(nova_inserted == std_inserted, seed,
+					require_differential(nova_inserted == std_inserted, seed,
 						operation, "try_emplace result");
-					RequireDifferential(nova_it->second == std_it->second, seed,
+					require_differential(nova_it->second == std_it->second, seed,
 						operation, "try_emplace value");
 					break;
 				}
 				case 2:
-					RequireDifferential(nova_map.erase(key) == (std_map.erase(key) != 0),
+					require_differential(nova_map.erase(key) == (std_map.erase(key) != 0),
 						seed, operation, "erase result");
 					break;
 				case 3: {
@@ -809,9 +809,9 @@ void TestCollisionStressOperations() {
 					break;
 				}
 				case 5: {
-					NovaMap copied(nova_map);
-					NovaMap moved(std::move(copied));
-					NovaMap reassigned;
+					nova_map_type copied(nova_map);
+					nova_map_type moved(std::move(copied));
+					nova_map_type reassigned;
 					reassigned = std::move(moved);
 					nova_map = reassigned;
 					break;
@@ -819,25 +819,25 @@ void TestCollisionStressOperations() {
 				default: {
 					const auto nova_it = nova_map.find(key);
 					const auto std_it = std_map.find(key);
-					RequireDifferential(
+					require_differential(
 						(nova_it == nova_map.end()) == (std_it == std_map.end()), seed,
 						operation, "find presence");
 					if (nova_it != nova_map.end()) {
-						RequireDifferential(nova_it->second == std_it->second, seed,
+						require_differential(nova_it->second == std_it->second, seed,
 							operation, "find value");
 					}
 					break;
 				}
 			}
 
-			RequireDifferential(nova_map.size() == std_map.size(), seed, operation,
+			require_differential(nova_map.size() == std_map.size(), seed, operation,
 				"size");
 			if (operation % 127 == 0) {
 				for (const auto& [std_key, std_value] : std_map) {
 					const auto nova_it = nova_map.find(std_key);
-					RequireDifferential(nova_it != nova_map.end(), seed, operation,
+					require_differential(nova_it != nova_map.end(), seed, operation,
 						"full comparison presence");
-					RequireDifferential(nova_it->second == std_value, seed, operation,
+					require_differential(nova_it->second == std_value, seed, operation,
 						"full comparison value");
 				}
 			}
@@ -847,41 +847,41 @@ void TestCollisionStressOperations() {
 	std::cout << "PASSED!\n";
 }
 
-void TestMemoryFootprintAccounting() {
+void test_memory_footprint_accounting() {
 	std::cout << "[Test 15] Memory footprint accounting... " << std::flush;
 
-	using Pair = std::pair<const int, int>;
-	using Allocator = TrackingAllocator<Pair>;
-	using Map = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
-						   Allocator>;
+	using pair_type = std::pair<const int, int>;
+	using allocator_type = tracking_allocator<pair_type>;
+	using map_type = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
+						   allocator_type>;
 
-	constexpr std::size_t kElementCount = 100000;
-	AllocatorStats stats;
+	constexpr std::size_t k_element_count = 100000;
+	allocator_stats stats;
 	{
-		Map map(0, {}, {}, Allocator(&stats));
-		Require(map.capacity() == 0);
-		Require(stats.allocation_count == 0);
+		map_type map(0, {}, {}, allocator_type(&stats));
+		require(map.capacity() == 0);
+		require(stats.allocation_count == 0);
 
-		map.reserve(kElementCount);
-		Require(map.capacity() >= kElementCount);
-		Require(stats.allocation_count == 1);
-		Require(stats.allocated_bytes % map.capacity() == 0);
+		map.reserve(k_element_count);
+		require(map.capacity() >= k_element_count);
+		require(stats.allocation_count == 1);
+		require(stats.allocated_bytes % map.capacity() == 0);
 
 		const std::size_t slot_bytes_per_bucket =
 			stats.allocated_bytes / map.capacity();
 		const std::size_t control_bytes =
-			map.capacity() + nova::containers::detail::Group::kWidth;
+			map.capacity() + nova::containers::detail::group_type::k_width;
 		const std::size_t table_bytes = stats.allocated_bytes + control_bytes;
 		const std::size_t original_capacity = map.capacity();
-		const std::size_t value_type_bytes = sizeof(Pair);
-		const std::size_t map_object_bytes = sizeof(Map);
+		const std::size_t value_type_bytes = sizeof(pair_type);
+		const std::size_t map_object_bytes = sizeof(map_type);
 		map.rehash(original_capacity * 2);
 		const std::size_t rehashed_control_bytes =
-			original_capacity + nova::containers::detail::Group::kWidth +
-			map.capacity() + nova::containers::detail::Group::kWidth;
+			original_capacity + nova::containers::detail::group_type::k_width +
+			map.capacity() + nova::containers::detail::group_type::k_width;
 		const std::size_t rehash_peak_bytes =
 			stats.peak_allocated_bytes + rehashed_control_bytes;
-		Require(map.capacity() == original_capacity * 2);
+		require(map.capacity() == original_capacity * 2);
 		std::cout << "initial_capacity=" << original_capacity
 				  << ", rehashed_capacity=" << map.capacity()
 				  << ", value_type=" << value_type_bytes << " B"
@@ -892,25 +892,25 @@ void TestMemoryFootprintAccounting() {
 				  << ", rehash_peak=" << rehash_peak_bytes << " B... ";
 	}
 
-	Require(stats.allocation_count == stats.deallocation_count);
-	Require(stats.allocated_bytes == stats.deallocated_bytes);
-	Require(stats.current_allocated_bytes == 0);
+	require(stats.allocation_count == stats.deallocation_count);
+	require(stats.allocated_bytes == stats.deallocated_bytes);
+	require(stats.current_allocated_bytes == 0);
 	std::cout << "PASSED!\n";
 }
 
-void TestTypeSpecificMemoryFootprints() {
+void test_type_specific_memory_footprints() {
 	std::cout << "[Test 16] Type-specific memory footprints... " << std::flush;
 
-	struct LargeValue {
+	struct large_record {
 		std::array<std::byte, 256> bytes;
 	};
 
-	const ReservedTableMeasurement string_key =
-		MeasureReservedTable<std::string, int>(100000);
-	const ReservedTableMeasurement large_value =
-		MeasureReservedTable<int, LargeValue>(10000);
-	Require(string_key.slot_bytes_per_bucket > sizeof(std::pair<const int, int>));
-	Require(large_value.slot_bytes_per_bucket > string_key.slot_bytes_per_bucket);
+	const reserved_table_measurement string_key =
+		measure_reserved_table<std::string, int>(100000);
+	const reserved_table_measurement large_value =
+		measure_reserved_table<int, large_record>(10000);
+	require(string_key.slot_bytes_per_bucket > sizeof(std::pair<const int, int>));
+	require(large_value.slot_bytes_per_bucket > string_key.slot_bytes_per_bucket);
 
 	std::cout << "string_key: capacity=" << string_key.capacity
 			  << ", slot=" << string_key.slot_bytes_per_bucket << " B"
@@ -921,230 +921,230 @@ void TestTypeSpecificMemoryFootprints() {
 	std::cout << "PASSED!\n";
 }
 
-void TestStatefulAllocatorOwnership() {
+void test_stateful_allocator_ownership() {
 	std::cout << "[Test 17] Stateful allocator ownership and propagation... "
 			  << std::flush;
 
-	using Pair = std::pair<const int, int>;
-	using Allocator = TrackingAllocator<Pair>;
-	using Map = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
-						   Allocator>;
+	using pair_type = std::pair<const int, int>;
+	using allocator_type = tracking_allocator<pair_type>;
+	using map_type = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
+						   allocator_type>;
 
-	AllocatorStats first_stats;
-	AllocatorStats second_stats;
-	const Allocator first_allocator(&first_stats);
-	const Allocator second_allocator(&second_stats);
+	allocator_stats first_stats;
+	allocator_stats second_stats;
+	const allocator_type first_allocator(&first_stats);
+	const allocator_type second_allocator(&second_stats);
 
 	{
-		Map source(16, {}, {}, first_allocator);
+		map_type source(16, {}, {}, first_allocator);
 		for (int i = 0; i < 100; ++i) {
 			source.insert({i, i * 10});
 		}
 
-		Map copied(source);
-		Require(copied.get_allocator() == first_allocator);
-		Require(copied.at(99) == 990);
+		map_type copied(source);
+		require(copied.get_allocator() == first_allocator);
+		require(copied.at(99) == 990);
 
-		Map copy_target(16, {}, {}, second_allocator);
+		map_type copy_target(16, {}, {}, second_allocator);
 		copy_target = source;
-		Require(copy_target.get_allocator() == second_allocator);
-		Require(copy_target.at(99) == 990);
+		require(copy_target.get_allocator() == second_allocator);
+		require(copy_target.at(99) == 990);
 
-		Map move_target(16, {}, {}, second_allocator);
+		map_type move_target(16, {}, {}, second_allocator);
 		move_target = std::move(copied);
-		Require(move_target.get_allocator() == second_allocator);
-		Require(move_target.at(99) == 990);
-		Require(copied.empty());
+		require(move_target.get_allocator() == second_allocator);
+		require(move_target.at(99) == 990);
+		require(copied.empty());
 
 		bool did_throw = false;
 		try {
-			source.Swap(move_target);
+			source.swap(move_target);
 		} catch (const std::invalid_argument&) {
 			did_throw = true;
 		}
-		Require(did_throw);
-		Require(source.at(99) == 990);
-		Require(move_target.at(99) == 990);
+		require(did_throw);
+		require(source.at(99) == 990);
+		require(move_target.at(99) == 990);
 	}
 
-	Require(first_stats.allocation_count == first_stats.deallocation_count);
-	Require(second_stats.allocation_count == second_stats.deallocation_count);
+	require(first_stats.allocation_count == first_stats.deallocation_count);
+	require(second_stats.allocation_count == second_stats.deallocation_count);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestPropagatingAllocatorOwnership() {
+void test_propagating_allocator_ownership() {
 	std::cout << "[Test 18] Propagating allocator ownership... " << std::flush;
 
-	using Pair = std::pair<const int, int>;
-	using Allocator = TrackingAllocator<Pair, true>;
-	using Map = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
-						   Allocator>;
+	using pair_type = std::pair<const int, int>;
+	using allocator_type = tracking_allocator<pair_type, true>;
+	using map_type = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
+						   allocator_type>;
 
-	AllocatorStats first_stats;
-	AllocatorStats second_stats;
-	const Allocator first_allocator(&first_stats);
-	const Allocator second_allocator(&second_stats);
+	allocator_stats first_stats;
+	allocator_stats second_stats;
+	const allocator_type first_allocator(&first_stats);
+	const allocator_type second_allocator(&second_stats);
 
 	{
-		Map source(16, {}, {}, first_allocator);
+		map_type source(16, {}, {}, first_allocator);
 		source.insert({1, 10});
 
-		Map copy_target(16, {}, {}, second_allocator);
+		map_type copy_target(16, {}, {}, second_allocator);
 		copy_target.insert({2, 20});
 		copy_target = source;
-		Require(copy_target.get_allocator() == first_allocator);
-		Require(copy_target.at(1) == 10);
+		require(copy_target.get_allocator() == first_allocator);
+		require(copy_target.at(1) == 10);
 
-		Map move_target(16, {}, {}, second_allocator);
+		map_type move_target(16, {}, {}, second_allocator);
 		move_target = std::move(copy_target);
-		Require(move_target.get_allocator() == first_allocator);
-		Require(move_target.at(1) == 10);
-		Require(copy_target.empty());
+		require(move_target.get_allocator() == first_allocator);
+		require(move_target.at(1) == 10);
+		require(copy_target.empty());
 
-		Map swap_target(16, {}, {}, second_allocator);
+		map_type swap_target(16, {}, {}, second_allocator);
 		swap_target.insert({3, 30});
-		move_target.Swap(swap_target);
-		Require(move_target.get_allocator() == second_allocator);
-		Require(move_target.at(3) == 30);
-		Require(swap_target.get_allocator() == first_allocator);
-		Require(swap_target.at(1) == 10);
+		move_target.swap(swap_target);
+		require(move_target.get_allocator() == second_allocator);
+		require(move_target.at(3) == 30);
+		require(swap_target.get_allocator() == first_allocator);
+		require(swap_target.at(1) == 10);
 	}
 
-	Require(first_stats.allocation_count == first_stats.deallocation_count);
-	Require(second_stats.allocation_count == second_stats.deallocation_count);
+	require(first_stats.allocation_count == first_stats.deallocation_count);
+	require(second_stats.allocation_count == second_stats.deallocation_count);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestLifecycleAndCapacityControls() {
+void test_lifecycle_and_capacity_controls() {
 	std::cout << "[Test 19] Lifecycle and capacity controls... " << std::flush;
 
-	nova::HashMap<int, int> map;
-	Require(map.Capacity() == 0);
-	map.Reserve(0);
-	Require(map.Capacity() == 0);
+	nova::hash_map<int, int> map;
+	require(map.capacity() == 0);
+	map.reserve(0);
+	require(map.capacity() == 0);
 
-	map.Insert({1, 10});
-	map.Insert({2, 20});
-	const std::size_t allocated_capacity = map.Capacity();
-	map.Clear();
-	Require(map.Empty());
-	Require(map.Capacity() == allocated_capacity);
+	map.insert({1, 10});
+	map.insert({2, 20});
+	const std::size_t allocated_capacity = map.capacity();
+	map.clear();
+	require(map.empty());
+	require(map.capacity() == allocated_capacity);
 
-	map.TryEmplace(3, 30);
-	Require(map.At(3) == 30);
-	map.Clear();
-	map.Rehash(0);
-	Require(map.Capacity() == 0);
+	map.try_emplace(3, 30);
+	require(map.at(3) == 30);
+	map.clear();
+	map.rehash(0);
+	require(map.capacity() == 0);
 
-	nova::HashMap<int, int> other;
-	map.Insert({4, 40});
-	other.Insert({5, 50});
-	map.Swap(other);
-	Require(map.At(5) == 50);
-	Require(other.At(4) == 40);
+	nova::hash_map<int, int> other;
+	map.insert({4, 40});
+	other.insert({5, 50});
+	map.swap(other);
+	require(map.at(5) == 50);
+	require(other.at(4) == 40);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestHashExceptionPreservesRehashSource() {
+void test_hash_exception_preserves_rehash_source() {
 	std::cout << "[Test 20] Hash exception preserves rehash source... "
 			<< std::flush;
 
-	ToggleThrowHash::should_throw = false;
-	nova::hash_map<int, int, ToggleThrowHash> map;
+	toggle_throw_hash::should_throw = false;
+	nova::hash_map<int, int, toggle_throw_hash> map;
 	map.insert({1, 10});
 	map.insert({2, 20});
 	const std::size_t original_capacity = map.capacity();
 
-	ToggleThrowHash::should_throw = true;
+	toggle_throw_hash::should_throw = true;
 	bool did_throw = false;
 	try {
 		map.rehash(64);
 	} catch (const std::runtime_error&) {
 		did_throw = true;
 	}
-	ToggleThrowHash::should_throw = false;
+	toggle_throw_hash::should_throw = false;
 
-	Require(did_throw);
-	Require(map.capacity() == original_capacity);
-	Require(map.size() == 2);
-	Require(map.at(1) == 10);
-	Require(map.at(2) == 20);
+	require(did_throw);
+	require(map.capacity() == original_capacity);
+	require(map.size() == 2);
+	require(map.at(1) == 10);
+	require(map.at(2) == 20);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestAllocatorMoveAssignmentException() {
+void test_allocator_move_assignment_exception() {
 	std::cout << "[Test 21] Allocator move-assignment exception... "
 			<< std::flush;
 
-	using Pair = std::pair<const int, int>;
-	using Allocator = ThrowingMoveAllocator<Pair>;
-	using Map = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
-						   Allocator>;
+	using pair_type = std::pair<const int, int>;
+	using allocator_type = throwing_move_allocator<pair_type>;
+	using map_type = nova::hash_map<int, int, std::hash<int>, std::equal_to<int>,
+						   allocator_type>;
 
-	AllocatorStats source_stats;
-	AllocatorStats target_stats;
+	allocator_stats source_stats;
+	allocator_stats target_stats;
 	{
-		Map source(16, {}, {}, Allocator(&source_stats));
-		Map target(16, {}, {}, Allocator(&target_stats));
+		map_type source(16, {}, {}, allocator_type(&source_stats));
+		map_type target(16, {}, {}, allocator_type(&target_stats));
 		source.insert({1, 10});
 		target.insert({2, 20});
 
-		Allocator::throw_on_move_assignment = true;
+		allocator_type::throw_on_move_assignment = true;
 		bool did_throw = false;
 		try {
 			target = std::move(source);
 		} catch (const std::runtime_error&) {
 			did_throw = true;
 		}
-		Allocator::throw_on_move_assignment = false;
+		allocator_type::throw_on_move_assignment = false;
 
-		Require(did_throw);
-		Require(target.empty());
-		Require(source.at(1) == 10);
-		Require(target.try_emplace(3, 30).second);
-		Require(target.at(3) == 30);
+		require(did_throw);
+		require(target.empty());
+		require(source.at(1) == 10);
+		require(target.try_emplace(3, 30).second);
+		require(target.at(3) == 30);
 	}
 
-	Require(source_stats.allocation_count == source_stats.deallocation_count);
-	Require(target_stats.allocation_count == target_stats.deallocation_count);
+	require(source_stats.allocation_count == source_stats.deallocation_count);
+	require(target_stats.allocation_count == target_stats.deallocation_count);
 	std::cout << "PASSED!\n";
 }
 
-void TestLongStringPayloadMemory() {
+void test_long_string_payload_memory() {
 	std::cout << "[Test 22] Long-string payload memory... " << std::flush;
 
-	using Pair = std::pair<const TrackedString, int>;
-	using Allocator = TrackingAllocator<Pair>;
-	using Map = nova::hash_map<TrackedString, int, TrackedStringHash,
-		std::equal_to<TrackedString>, Allocator>;
+	using pair_type = std::pair<const tracked_string, int>;
+	using allocator_type = tracking_allocator<pair_type>;
+	using map_type = nova::hash_map<tracked_string, int, tracked_string_hash,
+		std::equal_to<tracked_string>, allocator_type>;
 
-	constexpr int kElementCount = 10000;
-	constexpr std::size_t kStringLength = 128;
-	AllocatorStats stats;
+	constexpr int k_element_count = 10000;
+	constexpr std::size_t k_string_length = 128;
+	allocator_stats stats;
 	{
-		Map map(0, {}, {}, Allocator(&stats));
-		map.reserve(kElementCount);
+		map_type map(0, {}, {}, allocator_type(&stats));
+		map.reserve(k_element_count);
 		const std::size_t slot_bytes = stats.current_allocated_bytes;
 
-		for (int i = 0; i < kElementCount; ++i) {
-			TrackedString key(kStringLength, 'x', TrackingAllocator<char>(&stats));
+		for (int i = 0; i < k_element_count; ++i) {
+			tracked_string key(k_string_length, 'x', tracking_allocator<char>(&stats));
 			const std::string id = std::to_string(i);
 			key.replace(0, id.size(), id.data(), id.size());
-			Require(map.try_emplace(std::move(key), i).second);
+			require(map.try_emplace(std::move(key), i).second);
 		}
 
 		const std::size_t payload_bytes =
 			stats.current_allocated_bytes - slot_bytes;
 		const std::size_t control_bytes =
-			map.capacity() + nova::containers::detail::Group::kWidth;
+			map.capacity() + nova::containers::detail::group_type::k_width;
 		const std::size_t total_bytes =
 			stats.current_allocated_bytes + control_bytes;
-		Require(map.size() == kElementCount);
-		Require(payload_bytes >= kElementCount * (kStringLength + 1));
+		require(map.size() == k_element_count);
+		require(payload_bytes >= k_element_count * (k_string_length + 1));
 		std::cout << "capacity=" << map.capacity()
 				  << ", slots=" << slot_bytes << " B"
 				  << ", payload=" << payload_bytes << " B"
@@ -1152,76 +1152,76 @@ void TestLongStringPayloadMemory() {
 				  << ", total=" << total_bytes << " B... ";
 	}
 
-	Require(stats.allocation_count == stats.deallocation_count);
-	Require(stats.allocated_bytes == stats.deallocated_bytes);
-	Require(stats.current_allocated_bytes == 0);
+	require(stats.allocation_count == stats.deallocation_count);
+	require(stats.allocated_bytes == stats.deallocated_bytes);
+	require(stats.current_allocated_bytes == 0);
 	std::cout << "PASSED!\n";
 }
 
-void TestHeterogeneousLookup() {
+void test_heterogeneous_lookup() {
 	std::cout << "[Test 23] Heterogeneous string lookup... " << std::flush;
 
-	using Map = nova::hash_map<std::string, int, TransparentStringHash,
-		TransparentStringEqual>;
-	Map map;
+	using map_type = nova::hash_map<std::string, int, transparent_string_hash,
+		transparent_string_equal>;
+	map_type map;
 	map.try_emplace("alpha", 10);
 	map.try_emplace("beta", 20);
 
 	const std::string_view alpha = "alpha";
 	const std::string_view missing = "missing";
-	Require(map.find(alpha) != map.end());
-	Require(map.find(alpha)->second == 10);
-	Require(map.contains(alpha));
-	Require(map.count(alpha) == 1);
-	Require(!map.contains(missing));
+	require(map.find(alpha) != map.end());
+	require(map.find(alpha)->second == 10);
+	require(map.contains(alpha));
+	require(map.count(alpha) == 1);
+	require(!map.contains(missing));
 
-	const Map& const_map = map;
-	Require(const_map.find(std::string_view("beta")) != const_map.end());
-	Require(map.erase(alpha));
-	Require(!map.contains(alpha));
+	const map_type& const_map = map;
+	require(const_map.find(std::string_view("beta")) != const_map.end());
+	require(map.erase(alpha));
+	require(!map.contains(alpha));
 
 	std::cout << "PASSED!\n";
 }
 
-void TestSingleProbeInsertion() {
+void test_single_probe_insertion() {
 	std::cout << "[Test 24] Single-probe insertion... " << std::flush;
 
-	nova::hash_map<int, int, CountingHash> map;
+	nova::hash_map<int, int, counting_hash> map;
 	map.reserve(8);
 
-	CountingHash::calls = 0;
+	counting_hash::calls = 0;
 	const auto [first, first_inserted] = map.try_emplace(1, 10);
-	Require(first_inserted);
-	Require(first->second == 10);
-	Require(CountingHash::calls == 1);
+	require(first_inserted);
+	require(first->second == 10);
+	require(counting_hash::calls == 1);
 
-	CountingHash::calls = 0;
+	counting_hash::calls = 0;
 	const auto [duplicate, duplicate_inserted] = map.try_emplace(1, 20);
-	Require(!duplicate_inserted);
-	Require(duplicate->second == 10);
-	Require(CountingHash::calls == 1);
+	require(!duplicate_inserted);
+	require(duplicate->second == 10);
+	require(counting_hash::calls == 1);
 
-	CountingHash::calls = 0;
+	counting_hash::calls = 0;
 	const auto [assigned, assigned_inserted] = map.insert_or_assign(2, 30);
-	Require(assigned_inserted);
-	Require(assigned->second == 30);
-	Require(CountingHash::calls == 1);
+	require(assigned_inserted);
+	require(assigned->second == 30);
+	require(counting_hash::calls == 1);
 
 	std::cout << "PASSED!\n";
 }
 
-void TestDeferredConstructionExceptionSafety() {
+void test_deferred_construction_exception_safety() {
 	std::cout << "[Test 25] Deferred construction exception safety... "
 			  << std::flush;
 
-	nova::hash_map<int, ThrowOnConstruction> map;
+	nova::hash_map<int, throw_on_construction> map;
 	map.reserve(8);
 	map.try_emplace(1, 10);
 
-	ThrowOnConstruction::should_throw = true;
+	throw_on_construction::should_throw = true;
 	const auto [duplicate, duplicate_inserted] = map.try_emplace(1, 20);
-	Require(!duplicate_inserted);
-	Require(duplicate->second.value == 10);
+	require(!duplicate_inserted);
+	require(duplicate->second.value == 10);
 
 	bool threw = false;
 	try {
@@ -1229,14 +1229,14 @@ void TestDeferredConstructionExceptionSafety() {
 	} catch (const std::runtime_error&) {
 		threw = true;
 	}
-	Require(threw);
-	Require(map.size() == 1);
-	Require(!map.contains(2));
+	require(threw);
+	require(map.size() == 1);
+	require(!map.contains(2));
 
-	ThrowOnConstruction::should_throw = false;
+	throw_on_construction::should_throw = false;
 	const auto [inserted, was_inserted] = map.try_emplace(2, 20);
-	Require(was_inserted);
-	Require(inserted->second.value == 20);
+	require(was_inserted);
+	require(inserted->second.value == 20);
 
 	std::cout << "PASSED!\n";
 }
@@ -1244,31 +1244,31 @@ void TestDeferredConstructionExceptionSafety() {
 int main() {
   std::cout << "=== Running NovaContainers Tests ===\n\n";
 
-  TestBasicOperations();
-  TestLargeScaleRehash();
-  TestIteration();
-	TestConstLookupAndBoundsChecking();
-	TestHashExceptionsPropagate();
-	TestEqualityExceptionPreservesRehashSource();
-	TestStatefulHashSurvivesCopyAndMove();
-	TestRehashPreservesTableWhenCopyThrows();
-	TestMoveOnlyRehashPreservesStructuralInvariants();
-	TestTombstonesAreCompactedWithoutGrowth();
-	TestControlTailWrapAround();
-	TestExtendedContainerApi();
-	TestDifferentialOperations();
-	TestCollisionStressOperations();
-	TestMemoryFootprintAccounting();
-	TestTypeSpecificMemoryFootprints();
-	TestStatefulAllocatorOwnership();
-	TestPropagatingAllocatorOwnership();
-	TestLifecycleAndCapacityControls();
-	TestHashExceptionPreservesRehashSource();
-	TestAllocatorMoveAssignmentException();
-	TestLongStringPayloadMemory();
-	TestHeterogeneousLookup();
-	TestSingleProbeInsertion();
-	TestDeferredConstructionExceptionSafety();
+  test_basic_operations();
+  test_large_scale_rehash();
+  test_iteration();
+	test_const_lookup_and_bounds_checking();
+	test_hash_exceptions_propagate();
+	test_equality_exception_preserves_rehash_source();
+	test_stateful_hash_survives_copy_and_move();
+	test_rehash_preserves_table_when_copy_throws();
+	test_move_only_rehash_preserves_structural_invariants();
+	test_tombstones_are_compacted_without_growth();
+	test_control_tail_wrap_around();
+	test_extended_container_api();
+	test_differential_operations();
+	test_collision_stress_operations();
+	test_memory_footprint_accounting();
+	test_type_specific_memory_footprints();
+	test_stateful_allocator_ownership();
+	test_propagating_allocator_ownership();
+	test_lifecycle_and_capacity_controls();
+	test_hash_exception_preserves_rehash_source();
+	test_allocator_move_assignment_exception();
+	test_long_string_payload_memory();
+	test_heterogeneous_lookup();
+	test_single_probe_insertion();
+	test_deferred_construction_exception_safety();
   std::cout << "\nAll NovaContainers tests completed successfully!\n";
   return 0;
 }

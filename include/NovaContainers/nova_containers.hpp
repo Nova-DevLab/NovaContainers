@@ -5,9 +5,10 @@
 #include "NovaContainers/flat_set.hpp"
 #include "NovaContainers/hash_map.hpp"
 #include "NovaContainers/hash_set.hpp"
+#include "NovaContainers/list.hpp"
 
 namespace nova::containers {
-inline constexpr const char* kVersion = "1.0.0";
-}  // namespace nova::containers
+inline constexpr const char* k_version = "1.0.0";
+}  // 네임스페이스 nova::containers
 
-#endif  // NOVA_CONTAINERS_HPP_
+#endif  // NOVA_CONTAINERS_HPP_ 끝

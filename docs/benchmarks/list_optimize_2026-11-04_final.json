@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-04",
+  "command": "nova_containers_list_optimize_benchmark 100000 30 0 1",
+  "invocations": 1,
+  "samples": 5,
+  "configuration": "Release x64 AVX2 C++20",
+  "affinity_mask": 2,
+  "priority": "BelowNormal",
+  "build_jobs": 1,
+  "release_tests": {
+    "passed": 2,
+    "total": 2
+  },
+  "hashes": {
+    "include/NovaContainers/list.hpp": "a994ac3d7eb7c8bb853c9cb9d60d4d44eacca60a67cbaf642a73e9ecf7217cf3",
+    "tests/list/test_list_optimize.cpp": "4b7f5fef210b9d7b55346ab84ea102bc2fe45dda7d3242819510cb34a6a8ab84",
+    "benchmarks/list/benchmark_list_optimize.cpp": "665cd937a141b640bc611f9e1fafc2f3a09cd4f177b73d86d1ecc45124740b8d"
+  }
+}

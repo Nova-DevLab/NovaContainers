@@ -18,8 +18,8 @@ namespace nova::containers::detail {
 
 template <typename StoredValue, typename Key, typename KeyOfValue,
 		  typename Compare, typename Alloc>
-	requires KeyOrderedWith<Compare, Key, Key>
-class FlatTable {
+	requires key_ordered_with<Compare, Key, Key>
+class flat_table {
  public:
 	using value_type = StoredValue;
 	using key_type = Key;
@@ -33,36 +33,36 @@ class FlatTable {
 	using const_iterator = typename storage_type::const_iterator;
 
 	static_assert(std::same_as<typename allocator_traits::value_type, value_type>,
-		"FlatTable allocator value_type must match StoredValue");
+		"flat_table allocator value_type must match StoredValue");
 
-	FlatTable() = default;
+	flat_table() = default;
 
-	explicit FlatTable(const Compare& compare, const Alloc& allocator = Alloc{})
+	explicit flat_table(const Compare& compare, const Alloc& allocator = Alloc{})
 		: values_(allocator), compare_(compare) {}
 
-	FlatTable(size_type initial_capacity, const Compare& compare = Compare{},
+	flat_table(size_type initial_capacity, const Compare& compare = Compare{},
 		const Alloc& allocator = Alloc{})
 		: values_(allocator), compare_(compare) {
-		Reserve(initial_capacity);
+		reserve(initial_capacity);
 	}
 
-	FlatTable(const FlatTable&) = default;
-	FlatTable(FlatTable&&) = default;
-	FlatTable& operator=(const FlatTable&) = default;
-	FlatTable& operator=(FlatTable&&) = default;
-	~FlatTable() = default;
+	flat_table(const flat_table&) = default;
+	flat_table(flat_table&&) = default;
+	flat_table& operator=(const flat_table&) = default;
+	flat_table& operator=(flat_table&&) = default;
+	~flat_table() = default;
 
-	[[nodiscard]] size_type Size() const noexcept { return values_.size(); }
-	[[nodiscard]] size_type Capacity() const noexcept {
+	[[nodiscard]] size_type size() const noexcept { return values_.size(); }
+	[[nodiscard]] size_type capacity() const noexcept {
 		return values_.capacity();
 	}
-	[[nodiscard]] bool Empty() const noexcept { return values_.empty(); }
-	[[nodiscard]] allocator_type GetAllocator() const {
+	[[nodiscard]] bool empty() const noexcept { return values_.empty(); }
+	[[nodiscard]] allocator_type get_allocator() const {
 		return values_.get_allocator();
 	}
-	[[nodiscard]] key_compare KeyComp() const { return compare_; }
+	[[nodiscard]] key_compare key_comp() const { return compare_; }
 
-	void Swap(FlatTable& other) noexcept(
+	void swap(flat_table& other) noexcept(
 		std::is_nothrow_swappable_v<Compare> &&
 		(allocator_traits::propagate_on_container_swap::value
 			 ? std::is_nothrow_swappable_v<Alloc>
@@ -71,7 +71,7 @@ class FlatTable {
 			!allocator_traits::is_always_equal::value) {
 			if (values_.get_allocator() != other.values_.get_allocator()) {
 				throw std::invalid_argument(
-					"FlatTable::Swap: incompatible allocators");
+					"flat_table::swap: incompatible allocators");
 			}
 		}
 
@@ -81,179 +81,179 @@ class FlatTable {
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	iterator LowerBound(const LookupKey& key) {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	iterator lower_bound(const LookupKey& key) {
 		return std::lower_bound(values_.begin(), values_.end(), key,
 			[this](const value_type& value, const LookupKey& lookup_key) {
-				return compare_(KeyFrom(value), lookup_key);
+				return compare_(key_from(value), lookup_key);
 			});
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	const_iterator LowerBound(const LookupKey& key) const {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	const_iterator lower_bound(const LookupKey& key) const {
 		return std::lower_bound(values_.begin(), values_.end(), key,
 			[this](const value_type& value, const LookupKey& lookup_key) {
-				return compare_(KeyFrom(value), lookup_key);
+				return compare_(key_from(value), lookup_key);
 			});
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	iterator UpperBound(const LookupKey& key) {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	iterator upper_bound(const LookupKey& key) {
 		return std::upper_bound(values_.begin(), values_.end(), key,
 			[this](const LookupKey& lookup_key, const value_type& value) {
-				return compare_(lookup_key, KeyFrom(value));
+				return compare_(lookup_key, key_from(value));
 			});
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	const_iterator UpperBound(const LookupKey& key) const {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	const_iterator upper_bound(const LookupKey& key) const {
 		return std::upper_bound(values_.begin(), values_.end(), key,
 			[this](const LookupKey& lookup_key, const value_type& value) {
-				return compare_(lookup_key, KeyFrom(value));
+				return compare_(lookup_key, key_from(value));
 			});
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	iterator Find(const LookupKey& key) {
-		const iterator position = LowerBound(key);
-		return position != values_.end() && Equivalent(KeyFrom(*position), key)
+		requires key_ordered_with<Compare, Key, LookupKey>
+	iterator find(const LookupKey& key) {
+		const iterator position = lower_bound(key);
+		return position != values_.end() && equivalent(key_from(*position), key)
 			? position
 			: values_.end();
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	const_iterator Find(const LookupKey& key) const {
-		const const_iterator position = LowerBound(key);
-		return position != values_.end() && Equivalent(KeyFrom(*position), key)
+		requires key_ordered_with<Compare, Key, LookupKey>
+	const_iterator find(const LookupKey& key) const {
+		const const_iterator position = lower_bound(key);
+		return position != values_.end() && equivalent(key_from(*position), key)
 			? position
 			: values_.end();
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	[[nodiscard]] bool Contains(const LookupKey& key) const {
-		return Find(key) != values_.end();
+		requires key_ordered_with<Compare, Key, LookupKey>
+	[[nodiscard]] bool contains(const LookupKey& key) const {
+		return find(key) != values_.end();
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	std::pair<iterator, iterator> EqualRange(const LookupKey& key) {
-		const iterator first = LowerBound(key);
-		if (first == values_.end() || !Equivalent(KeyFrom(*first), key)) {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	std::pair<iterator, iterator> equal_range(const LookupKey& key) {
+		const iterator first = lower_bound(key);
+		if (first == values_.end() || !equivalent(key_from(*first), key)) {
 			return {first, first};
 		}
 		return {first, first + 1};
 	}
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	std::pair<const_iterator, const_iterator> EqualRange(
+		requires key_ordered_with<Compare, Key, LookupKey>
+	std::pair<const_iterator, const_iterator> equal_range(
 		const LookupKey& key) const {
-		const const_iterator first = LowerBound(key);
-		if (first == values_.end() || !Equivalent(KeyFrom(*first), key)) {
+		const const_iterator first = lower_bound(key);
+		if (first == values_.end() || !equivalent(key_from(*first), key)) {
 			return {first, first};
 		}
 		return {first, first + 1};
 	}
 
 	template <typename V>
-	std::pair<iterator, bool> Insert(V&& value) {
-		const Key& key = KeyFrom(value);
-		const iterator position = LowerBound(key);
-		if (position != values_.end() && Equivalent(KeyFrom(*position), key)) {
+	std::pair<iterator, bool> insert(V&& value) {
+		const Key& key = key_from(value);
+		const iterator position = lower_bound(key);
+		if (position != values_.end() && equivalent(key_from(*position), key)) {
 			return {position, false};
 		}
 		return {values_.insert(position, std::forward<V>(value)), true};
 	}
 
 	template <typename LookupKey, typename Factory>
-		requires KeyOrderedWith<Compare, Key, LookupKey> &&
+		requires key_ordered_with<Compare, Key, LookupKey> &&
 			std::invocable<Factory> &&
 			std::constructible_from<value_type, std::invoke_result_t<Factory>>
-	std::pair<iterator, bool> InsertWithKey(
+	std::pair<iterator, bool> insert_with_key(
 		const LookupKey& key, Factory&& factory) {
-		const iterator position = LowerBound(key);
-		if (position != values_.end() && Equivalent(KeyFrom(*position), key)) {
+		const iterator position = lower_bound(key);
+		if (position != values_.end() && equivalent(key_from(*position), key)) {
 			return {position, false};
 		}
 		return {values_.emplace(position,
 			std::invoke(std::forward<Factory>(factory))), true};
 	}
 
-	iterator Erase(iterator position) { return values_.erase(position); }
-	iterator Erase(const_iterator position) { return values_.erase(position); }
+	iterator erase(iterator position) { return values_.erase(position); }
+	iterator erase(const_iterator position) { return values_.erase(position); }
 
 	template <typename LookupKey>
-		requires KeyOrderedWith<Compare, Key, LookupKey>
-	bool EraseKey(const LookupKey& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
+		requires key_ordered_with<Compare, Key, LookupKey>
+	bool erase_key(const LookupKey& key) {
+		const iterator position = find(key);
+		if (position == end()) {
 			return false;
 		}
-		Erase(position);
+		erase(position);
 		return true;
 	}
 
-	void Clear() noexcept { values_.clear(); }
-	void Reserve(size_type element_count) { values_.reserve(element_count); }
-	void ShrinkToFit() { values_.shrink_to_fit(); }
+	void clear() noexcept { values_.clear(); }
+	void reserve(size_type element_count) { values_.reserve(element_count); }
+	void shrink_to_fit() { values_.shrink_to_fit(); }
 
 	template <typename InputIt>
-	void AssignUnsorted(InputIt first, InputIt last) {
+	void assign_unsorted(InputIt first, InputIt last) {
 		storage_type replacement(values_.get_allocator());
 		replacement.assign(first, last);
 		std::sort(replacement.begin(), replacement.end(),
 			[this](const value_type& left, const value_type& right) {
-				return compare_(KeyFrom(left), KeyFrom(right));
+				return compare_(key_from(left), key_from(right));
 			});
-		ValidateUnique(replacement);
+		validate_unique(replacement);
 		values_.swap(replacement);
 	}
 
 	template <typename InputIt>
-	void AssignSortedUnique(InputIt first, InputIt last) {
+	void assign_sorted_unique(InputIt first, InputIt last) {
 		storage_type replacement(values_.get_allocator());
 		replacement.assign(first, last);
-		ValidateStrictOrder(replacement);
+		validate_strict_order(replacement);
 		values_.swap(replacement);
 	}
 
-	iterator Begin() noexcept { return values_.begin(); }
-	iterator End() noexcept { return values_.end(); }
-	const_iterator Begin() const noexcept { return values_.begin(); }
-	const_iterator End() const noexcept { return values_.end(); }
-	const_iterator CBegin() const noexcept { return values_.cbegin(); }
-	const_iterator CEnd() const noexcept { return values_.cend(); }
+	iterator begin() noexcept { return values_.begin(); }
+	iterator end() noexcept { return values_.end(); }
+	const_iterator begin() const noexcept { return values_.begin(); }
+	const_iterator end() const noexcept { return values_.end(); }
+	const_iterator cbegin() const noexcept { return values_.cbegin(); }
+	const_iterator cend() const noexcept { return values_.cend(); }
 
  private:
-	static const Key& KeyFrom(const value_type& value) noexcept {
+	static const Key& key_from(const value_type& value) noexcept {
 		return KeyOfValue{}(value);
 	}
 
 	template <typename Left, typename Right>
-	bool Equivalent(const Left& left, const Right& right) const {
+	bool equivalent(const Left& left, const Right& right) const {
 		return !compare_(left, right) && !compare_(right, left);
 	}
 
-	void ValidateUnique(const storage_type& values) const {
+	void validate_unique(const storage_type& values) const {
 		for (size_type index = 1; index < values.size(); ++index) {
-			if (Equivalent(KeyFrom(values[index - 1]), KeyFrom(values[index]))) {
+			if (equivalent(key_from(values[index - 1]), key_from(values[index]))) {
 				throw std::invalid_argument(
-					"FlatTable::AssignUnsorted: duplicate key");
+					"flat_table::assign_unsorted: duplicate key");
 			}
 		}
 	}
 
-	void ValidateStrictOrder(const storage_type& values) const {
+	void validate_strict_order(const storage_type& values) const {
 		for (size_type index = 1; index < values.size(); ++index) {
-			if (!compare_(KeyFrom(values[index - 1]), KeyFrom(values[index]))) {
+			if (!compare_(key_from(values[index - 1]), key_from(values[index]))) {
 				throw std::invalid_argument(
-					"FlatTable::AssignSortedUnique: input is not strictly ordered");
+					"flat_table::assign_sorted_unique: input is not strictly ordered");
 			}
 		}
 	}
@@ -262,6 +262,6 @@ class FlatTable {
 	[[no_unique_address]] Compare compare_{};
 };
 
-}  // namespace nova::containers::detail
+}  // 네임스페이스 nova::containers::detail
 
 #endif  // NOVA_CONTAINERS_DETAIL_FLAT_TABLE_HPP_

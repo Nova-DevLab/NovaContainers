@@ -26,7 +26,7 @@ option(NOVA_BUILD_TESTS "Build NovaContainers tests" ${nova_standalone})
 option(NOVA_BUILD_BENCHMARKS "Build NovaContainers benchmarks" ${nova_standalone})
 
 if(NOVA_BUILD_TESTS OR NOVA_BUILD_BENCHMARKS)
-	include(cmake/NovaDevelopment.cmake)
+	include(cmake/nova_development.cmake)
 endif()
 if(NOVA_BUILD_TESTS)
 	enable_testing()

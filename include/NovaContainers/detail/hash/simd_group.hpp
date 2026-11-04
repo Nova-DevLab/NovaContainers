@@ -16,30 +16,30 @@
 
 namespace nova::containers::detail {
 
-// Control byte special values (MSB is set for special slots)
-inline constexpr int8_t kEmptySlot = static_cast<int8_t>(0x80);     // -128
-inline constexpr int8_t kDeletedSlot = static_cast<int8_t>(0xFE);   // -2
+// 특수 슬롯의 control byte 값은 최상위 비트를 설정한다.
+inline constexpr int8_t k_empty_slot = static_cast<int8_t>(0x80);     // -128
+inline constexpr int8_t k_deleted_slot = static_cast<int8_t>(0xFE);   // -2
 
-// BitMask helper wrapper
-class BitMask {
+// 비트 마스크의 조회와 하위 비트 제거를 제공한다.
+class bit_mask {
  public:
-  explicit BitMask(uint32_t mask) : mask_(mask) {}
+  explicit bit_mask(uint32_t mask) : mask_(mask) {}
 
   [[nodiscard]] constexpr explicit operator bool() const noexcept {
     return mask_ != 0;
   }
 
-  [[nodiscard]] constexpr uint32_t Mask() const noexcept {
+  [[nodiscard]] constexpr uint32_t mask() const noexcept {
     return mask_;
   }
 
-  // Find lowest set bit index (trailing zeros)
-  [[nodiscard]] constexpr uint32_t LowestSetBit() const noexcept {
+  // 가장 낮은 설정 비트의 인덱스를 구한다.
+  [[nodiscard]] constexpr uint32_t lowest_set_bit() const noexcept {
     return static_cast<uint32_t>(std::countr_zero(mask_));
   }
 
-  // Clear lowest set bit
-  constexpr BitMask& ClearLowestSetBit() noexcept {
+  // 가장 낮은 설정 비트를 지운다.
+  constexpr bit_mask& clear_lowest_set_bit() noexcept {
     mask_ &= (mask_ - 1);
     return *this;
   }
@@ -48,52 +48,52 @@ class BitMask {
   uint32_t mask_;
 };
 
-// 16-byte SSE2 / AVX2 Group implementation
-class GroupSse2 {
+// SSE2 명령으로 16바이트 control group을 처리한다.
+class group_sse2 {
  public:
-  static constexpr size_t kWidth = 16;
+  static constexpr size_t k_width = 16;
 
-  explicit GroupSse2(const int8_t* pos) {
+  explicit group_sse2(const int8_t* pos) {
 #if defined(NOVA_HAS_SSE2) || defined(NOVA_HAS_AVX2)
     ctrl_ = _mm_loadu_si128(reinterpret_cast<const __m128i*>(pos));
 #else
-    for (size_t i = 0; i < kWidth; ++i) {
+    for (size_t i = 0; i < k_width; ++i) {
       ctrl_bytes_[i] = pos[i];
     }
 #endif
   }
 
-  [[nodiscard]] BitMask Match(int8_t h2) const noexcept {
+  [[nodiscard]] bit_mask match(int8_t h2) const noexcept {
 #if defined(NOVA_HAS_SSE2) || defined(NOVA_HAS_AVX2)
     __m128i target = _mm_set1_epi8(static_cast<char>(h2));
     __m128i cmp = _mm_cmpeq_epi8(ctrl_, target);
-    return BitMask(static_cast<uint32_t>(_mm_movemask_epi8(cmp)));
+    return bit_mask(static_cast<uint32_t>(_mm_movemask_epi8(cmp)));
 #else
     uint32_t mask = 0;
-    for (size_t i = 0; i < kWidth; ++i) {
+    for (size_t i = 0; i < k_width; ++i) {
       if (ctrl_bytes_[i] == h2) {
         mask |= (1U << i);
       }
     }
-    return BitMask(mask);
+    return bit_mask(mask);
 #endif
   }
 
-  [[nodiscard]] BitMask MatchEmpty() const noexcept {
-    return Match(kEmptySlot);
+  [[nodiscard]] bit_mask match_empty() const noexcept {
+    return match(k_empty_slot);
   }
 
-  [[nodiscard]] BitMask MatchEmptyOrDeleted() const noexcept {
+  [[nodiscard]] bit_mask match_empty_or_deleted() const noexcept {
 #if defined(NOVA_HAS_SSE2) || defined(NOVA_HAS_AVX2)
-    return BitMask(static_cast<uint32_t>(_mm_movemask_epi8(ctrl_)));
+    return bit_mask(static_cast<uint32_t>(_mm_movemask_epi8(ctrl_)));
 #else
     uint32_t mask = 0;
-    for (size_t i = 0; i < kWidth; ++i) {
-      if (ctrl_bytes_[i] == kEmptySlot || ctrl_bytes_[i] == kDeletedSlot) {
+    for (size_t i = 0; i < k_width; ++i) {
+      if (ctrl_bytes_[i] == k_empty_slot || ctrl_bytes_[i] == k_deleted_slot) {
         mask |= (1U << i);
       }
     }
-    return BitMask(mask);
+    return bit_mask(mask);
 #endif
   }
 
@@ -101,12 +101,12 @@ class GroupSse2 {
 #if defined(NOVA_HAS_SSE2) || defined(NOVA_HAS_AVX2)
   __m128i ctrl_;
 #else
-  int8_t ctrl_bytes_[kWidth];
+  int8_t ctrl_bytes_[k_width];
 #endif
 };
 
-using Group = GroupSse2;
+using group_type = group_sse2;
 
-}  // namespace nova::containers::detail
+}  // 네임스페이스 nova::containers::detail
 
 #endif  // NOVA_CONTAINERS_DETAIL_HASH_SIMD_GROUP_HPP_

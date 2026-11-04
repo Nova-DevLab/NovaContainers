@@ -21,25 +21,25 @@ namespace nova::containers::detail {
 
 template <typename StoredValue, typename Key, typename KeyOfValue,
 		  typename Hash, typename Eq, typename Alloc>
-	requires Hashable<Hash, Key> && KeyEquality<Key, Eq>
-class RawHashTable {
+	requires hashable<Hash, Key> && key_equality<Key, Eq>
+class raw_hash_table {
  private:
-	struct NoAllocateTag {};
+	struct no_allocate_tag {};
 
-	struct Slot {
+	struct slot {
 		union {
 			StoredValue value_;
 		};
 
-		Slot() noexcept {}
-		~Slot() {}
+		slot() noexcept {}
+		~slot() {}
 
 		template <typename... Args>
-		void Construct(Args&&... args) {
+		void construct(Args&&... args) {
 			std::construct_at(&value_, std::forward<Args>(args)...);
 		}
 
-		void Destroy() noexcept {
+		void destroy() noexcept {
 			std::destroy_at(&value_);
 		}
 	};
@@ -55,30 +55,30 @@ class RawHashTable {
 	using allocator_traits = std::allocator_traits<allocator_type>;
 
  private:
-	using SlotAlloc =
-		typename allocator_traits::template rebind_alloc<Slot>;
-	using SlotTraits = std::allocator_traits<SlotAlloc>;
-	static_assert(std::same_as<typename SlotTraits::pointer, Slot*>,
-		"RawHashTable requires an allocator with raw Slot pointers");
+	using slot_allocator =
+		typename allocator_traits::template rebind_alloc<slot>;
+	using slot_traits = std::allocator_traits<slot_allocator>;
+	static_assert(std::same_as<typename slot_traits::pointer, slot*>,
+		"raw_hash_table requires an allocator with raw slot pointers");
 
  public:
 	template <bool IsConst>
-	class BasicIterator {
+	class basic_iterator {
 	 public:
 		using iterator_category = std::forward_iterator_tag;
-		using value_type = RawHashTable::value_type;
+		using value_type = raw_hash_table::value_type;
 		using difference_type = std::ptrdiff_t;
 		using pointer = std::conditional_t<IsConst, const value_type*, value_type*>;
 		using reference =
 			std::conditional_t<IsConst, const value_type&, value_type&>;
 
-		BasicIterator() noexcept = default;
-		BasicIterator(const BasicIterator&) noexcept = default;
-		BasicIterator& operator=(const BasicIterator&) noexcept = default;
+		basic_iterator() noexcept = default;
+		basic_iterator(const basic_iterator&) noexcept = default;
+		basic_iterator& operator=(const basic_iterator&) noexcept = default;
 
 		template <bool OtherConst>
 			 requires (IsConst && !OtherConst)
-		BasicIterator(const BasicIterator<OtherConst>& other) noexcept
+		basic_iterator(const basic_iterator<OtherConst>& other) noexcept
 			: table_(other.table_), index_(other.index_) {}
 
 		reference operator*() const noexcept {
@@ -89,101 +89,101 @@ class RawHashTable {
 			return &table_->slots_[index_].value_;
 		}
 
-		BasicIterator& operator++() noexcept {
+		basic_iterator& operator++() noexcept {
 			++index_;
-			SkipEmpty();
+			skip_empty();
 			return *this;
 		}
 
-		BasicIterator operator++(int) noexcept {
-			BasicIterator copy = *this;
+		basic_iterator operator++(int) noexcept {
+			basic_iterator copy = *this;
 			++(*this);
 			return copy;
 		}
 
 		template <bool OtherConst>
-		bool operator==(const BasicIterator<OtherConst>& other) const noexcept {
+		bool operator==(const basic_iterator<OtherConst>& other) const noexcept {
 			return table_ == other.table_ && index_ == other.index_;
 		}
 
 		template <bool OtherConst>
-		bool operator!=(const BasicIterator<OtherConst>& other) const noexcept {
+		bool operator!=(const basic_iterator<OtherConst>& other) const noexcept {
 			return !(*this == other);
 		}
 
 	 private:
-		using TablePointer =
-			std::conditional_t<IsConst, const RawHashTable*, RawHashTable*>;
+		using table_pointer =
+			std::conditional_t<IsConst, const raw_hash_table*, raw_hash_table*>;
 
-		BasicIterator(TablePointer table, size_type index) noexcept
+		basic_iterator(table_pointer table, size_type index) noexcept
 			: table_(table), index_(index) {
-			SkipEmpty();
+			skip_empty();
 		}
 
-		void SkipEmpty() noexcept {
+		void skip_empty() noexcept {
 			if (table_ == nullptr || table_->ctrl_ == nullptr) {
 				return;
 			}
-			while (index_ < table_->capacity_ && !table_->IsOccupied(index_)) {
+			while (index_ < table_->capacity_ && !table_->is_occupied(index_)) {
 				++index_;
 			}
 		}
 
-		TablePointer table_ = nullptr;
+		table_pointer table_ = nullptr;
 		size_type index_ = 0;
 		template <bool>
-		friend class BasicIterator;
-		friend class RawHashTable;
+		friend class basic_iterator;
+		friend class raw_hash_table;
 	};
 
-	using iterator = BasicIterator<false>;
-	using const_iterator = BasicIterator<true>;
+	using iterator = basic_iterator<false>;
+	using const_iterator = basic_iterator<true>;
 
-	RawHashTable() : RawHashTable(NoAllocateTag{}, Hash{}, Eq{}, Alloc{}) {}
+	raw_hash_table() : raw_hash_table(no_allocate_tag{}, Hash{}, Eq{}, Alloc{}) {}
 
-	explicit RawHashTable(size_type initial_capacity, const Hash& hash = Hash{},
+	explicit raw_hash_table(size_type initial_capacity, const Hash& hash = Hash{},
 		const Eq& equal = Eq{}, const Alloc& allocator = Alloc{})
 		: hash_func_(hash), eq_func_(equal), allocator_(allocator) {
 		if (initial_capacity != 0) {
-			RehashStorage(NormalizeCapacity(initial_capacity));
+			rehash_storage(normalize_capacity(initial_capacity));
 		}
 	}
 
-	~RawHashTable() {
-		ClearAndDeallocate();
+	~raw_hash_table() {
+		clear_and_deallocate();
 	}
 
-	RawHashTable(const RawHashTable& other)
+	raw_hash_table(const raw_hash_table& other)
 		: hash_func_(other.hash_func_),
 		  eq_func_(other.eq_func_),
 		  allocator_(allocator_traits::select_on_container_copy_construction(
 			  other.allocator_)) {
 		try {
-			CopyStorageFrom(other);
+			copy_storage_from(other);
 		} catch (...) {
-			ClearAndDeallocate();
+			clear_and_deallocate();
 			throw;
 		}
 	}
 
-	RawHashTable(RawHashTable&& other) noexcept(
+	raw_hash_table(raw_hash_table&& other) noexcept(
 		std::is_nothrow_move_constructible_v<Hash> &&
 		std::is_nothrow_move_constructible_v<Eq> &&
 		std::is_nothrow_move_constructible_v<Alloc>)
 		: hash_func_(std::move(other.hash_func_)),
 		  eq_func_(std::move(other.eq_func_)),
 		  allocator_(std::move(other.allocator_)) {
-		StealStorage(other);
+		steal_storage(other);
 	}
 
-	RawHashTable& operator=(const RawHashTable& other) {
+	raw_hash_table& operator=(const raw_hash_table& other) {
 		static_assert(std::is_nothrow_swappable_v<Hash>,
-			"RawHashTable copy assignment requires a nothrow-swappable Hash");
+			"raw_hash_table copy assignment requires a nothrow-swappable Hash");
 		static_assert(std::is_nothrow_swappable_v<Eq>,
-			"RawHashTable copy assignment requires a nothrow-swappable Eq");
+			"raw_hash_table copy assignment requires a nothrow-swappable Eq");
 		if constexpr (allocator_traits::propagate_on_container_copy_assignment::value) {
 			static_assert(std::is_nothrow_swappable_v<Alloc>,
-				"RawHashTable copy assignment requires a nothrow-swappable Alloc");
+				"raw_hash_table copy assignment requires a nothrow-swappable Alloc");
 		}
 		if (this == &other) {
 			return *this;
@@ -198,9 +198,9 @@ class RawHashTable {
 			}
 		}();
 
-		RawHashTable replacement(NoAllocateTag{}, other.hash_func_, other.eq_func_,
+		raw_hash_table replacement(no_allocate_tag{}, other.hash_func_, other.eq_func_,
 			replacement_allocator);
-		replacement.CopyStorageFrom(other);
+		replacement.copy_storage_from(other);
 
 		using std::swap;
 		swap(hash_func_, replacement.hash_func_);
@@ -208,11 +208,11 @@ class RawHashTable {
 		if constexpr (allocator_traits::propagate_on_container_copy_assignment::value) {
 			swap(allocator_, replacement.allocator_);
 		}
-		SwapStorage(replacement);
+		swap_storage(replacement);
 		return *this;
 	}
 
-	RawHashTable& operator=(RawHashTable&& other) noexcept(
+	raw_hash_table& operator=(raw_hash_table&& other) noexcept(
 		std::is_nothrow_move_assignable_v<Hash> &&
 		std::is_nothrow_move_assignable_v<Eq> &&
 		(allocator_traits::propagate_on_container_move_assignment::value
@@ -225,36 +225,36 @@ class RawHashTable {
 			!allocator_traits::propagate_on_container_move_assignment::value &&
 			!allocator_traits::is_always_equal::value) {
 			static_assert(std::is_nothrow_swappable_v<Hash>,
-				"RawHashTable move assignment requires a nothrow-swappable Hash");
+				"raw_hash_table move assignment requires a nothrow-swappable Hash");
 			static_assert(std::is_nothrow_swappable_v<Eq>,
-				"RawHashTable move assignment requires a nothrow-swappable Eq");
+				"raw_hash_table move assignment requires a nothrow-swappable Eq");
 		}
 
 		if constexpr (allocator_traits::propagate_on_container_move_assignment::value) {
-			ClearAndDeallocate();
+			clear_and_deallocate();
 			hash_func_ = std::move(other.hash_func_);
 			eq_func_ = std::move(other.eq_func_);
 			allocator_ = std::move(other.allocator_);
-			StealStorage(other);
+			steal_storage(other);
 		} else if constexpr (allocator_traits::is_always_equal::value) {
-			ClearAndDeallocate();
+			clear_and_deallocate();
 			hash_func_ = std::move(other.hash_func_);
 			eq_func_ = std::move(other.eq_func_);
-			StealStorage(other);
+			steal_storage(other);
 		} else if (allocator_ == other.allocator_) {
-			ClearAndDeallocate();
+			clear_and_deallocate();
 			hash_func_ = std::move(other.hash_func_);
 			eq_func_ = std::move(other.eq_func_);
-			StealStorage(other);
+			steal_storage(other);
 		} else {
-			RawHashTable replacement(NoAllocateTag{}, other.hash_func_,
+			raw_hash_table replacement(no_allocate_tag{}, other.hash_func_,
 				other.eq_func_, allocator_);
 			if (other.capacity_ != 0) {
-				replacement.AllocateStorage(other.capacity_);
+				replacement.allocate_storage(other.capacity_);
 			}
 			for (size_type index = 0; index < other.capacity_; ++index) {
-				if (other.IsOccupied(index)) {
-					replacement.Insert(
+				if (other.is_occupied(index)) {
+					replacement.insert(
 						std::move(other.slots_[index].value_));
 				}
 			}
@@ -262,44 +262,44 @@ class RawHashTable {
 			using std::swap;
 			swap(hash_func_, replacement.hash_func_);
 			swap(eq_func_, replacement.eq_func_);
-			SwapStorage(replacement);
-			other.Clear();
+			swap_storage(replacement);
+			other.clear();
 		}
 		return *this;
 	}
 
-	[[nodiscard]] size_type Size() const noexcept { return size_; }
-	[[nodiscard]] size_type Capacity() const noexcept { return capacity_; }
-	[[nodiscard]] bool Empty() const noexcept { return size_ == 0; }
-	[[nodiscard]] float LoadFactor() const noexcept {
+	[[nodiscard]] size_type size() const noexcept { return size_; }
+	[[nodiscard]] size_type capacity() const noexcept { return capacity_; }
+	[[nodiscard]] bool empty() const noexcept { return size_ == 0; }
+	[[nodiscard]] float load_factor() const noexcept {
 		return capacity_ == 0
 			? 0.0F
 			: static_cast<float>(size_) / static_cast<float>(capacity_);
 	}
-	[[nodiscard]] constexpr float MaxLoadFactor() const noexcept {
-		return kMaxLoadFactor;
+	[[nodiscard]] constexpr float max_load_factor() const noexcept {
+		return k_max_load_factor;
 	}
-	[[nodiscard]] allocator_type GetAllocator() const { return allocator_; }
+	[[nodiscard]] allocator_type get_allocator() const { return allocator_; }
 
-	void Swap(RawHashTable& other) noexcept(
+	void swap(raw_hash_table& other) noexcept(
 		std::is_nothrow_swappable_v<Hash> &&
 		std::is_nothrow_swappable_v<Eq> &&
 		(allocator_traits::propagate_on_container_swap::value
 			 ? std::is_nothrow_swappable_v<Alloc>
 			 : allocator_traits::is_always_equal::value)) {
 		static_assert(std::is_nothrow_swappable_v<Hash>,
-			"RawHashTable::Swap requires a nothrow-swappable Hash");
+			"raw_hash_table::Swap requires a nothrow-swappable Hash");
 		static_assert(std::is_nothrow_swappable_v<Eq>,
-			"RawHashTable::Swap requires a nothrow-swappable Eq");
+			"raw_hash_table::Swap requires a nothrow-swappable Eq");
 		if constexpr (allocator_traits::propagate_on_container_swap::value) {
 			static_assert(std::is_nothrow_swappable_v<Alloc>,
-				"RawHashTable::Swap requires a nothrow-swappable Alloc");
+				"raw_hash_table::Swap requires a nothrow-swappable Alloc");
 		}
 		if constexpr (!allocator_traits::propagate_on_container_swap::value &&
 			!allocator_traits::is_always_equal::value) {
 			if (allocator_ != other.allocator_) {
 				throw std::invalid_argument(
-					"RawHashTable::Swap: incompatible allocators");
+					"raw_hash_table::Swap: incompatible allocators");
 			}
 		}
 
@@ -309,205 +309,205 @@ class RawHashTable {
 		if constexpr (allocator_traits::propagate_on_container_swap::value) {
 			swap(allocator_, other.allocator_);
 		}
-		SwapStorage(other);
+		swap_storage(other);
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey>
-	iterator Find(const LookupKey& key) {
-		const size_type index = FindIndex(key);
-		return index == capacity_ ? End() : iterator(this, index);
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey>
+	iterator find(const LookupKey& key) {
+		const size_type index = find_index(key);
+		return index == capacity_ ? end() : iterator(this, index);
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey>
-	const_iterator Find(const LookupKey& key) const {
-		const size_type index = FindIndex(key);
-		return index == capacity_ ? End() : const_iterator(this, index);
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey>
+	const_iterator find(const LookupKey& key) const {
+		const size_type index = find_index(key);
+		return index == capacity_ ? end() : const_iterator(this, index);
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey>
-	[[nodiscard]] bool Contains(const LookupKey& key) const {
-		return FindIndex(key) != capacity_;
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey>
+	[[nodiscard]] bool contains(const LookupKey& key) const {
+		return find_index(key) != capacity_;
 	}
 
 	template <typename V>
-	std::pair<iterator, bool> Insert(V&& value) {
-		const Key& key = KeyFrom(value);
-		return InsertWithKey(key, [&](value_type* destination) {
+	std::pair<iterator, bool> insert(V&& value) {
+		const Key& key = key_from(value);
+		return insert_with_key(key, [&](value_type* destination) {
 			std::construct_at(destination, std::forward<V>(value));
 		});
 	}
 
 	template <typename LookupKey, typename Constructor>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey> &&
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey> &&
 			std::invocable<Constructor, value_type*>
-	std::pair<iterator, bool> InsertWithKey(
+	std::pair<iterator, bool> insert_with_key(
 		const LookupKey& key, Constructor&& constructor) {
 		if (capacity_ == 0) {
-			RehashStorage(kDefaultCapacity);
+			rehash_storage(k_default_capacity);
 		}
 
-		InsertLocation location = FindInsertLocation(key);
+		insert_location location = find_insert_location(key);
 		if (location.found) {
 			return {iterator(this, location.index), false};
 		}
 		if (growth_left_ == 0) {
-			if (size_ < CapacityToGrowthLeft(capacity_)) {
-				RehashStorage(capacity_);
+			if (size_ < capacity_to_growth_left(capacity_)) {
+				rehash_storage(capacity_);
 			} else {
-				RehashStorage(NextCapacity(capacity_));
+				rehash_storage(next_capacity(capacity_));
 			}
-			location = FindInsertLocation(key);
+			location = find_insert_location(key);
 			assert(!location.found);
 		}
 
 		const bool consumes_growth =
-			ctrl_[location.index] == kEmptySlot;
+			ctrl_[location.index] == k_empty_slot;
 		std::invoke(std::forward<Constructor>(constructor),
 			&slots_[location.index].value_);
 		if (consumes_growth) {
 			--growth_left_;
 		}
-		SetControlByte(location.index, location.h2);
+		set_control_byte(location.index, location.h2);
 		++size_;
 		return {iterator(this, location.index), true};
 	}
 
 	template <bool IsConst>
-	iterator Erase(BasicIterator<IsConst> position) {
+	iterator erase(basic_iterator<IsConst> position) {
 		assert(position.table_ == this && position.index_ < capacity_);
 		const size_type index = position.index_;
-		slots_[index].Destroy();
-		SetControlByte(index, kDeletedSlot);
+		slots_[index].destroy();
+		set_control_byte(index, k_deleted_slot);
 		--size_;
 		return iterator(this, index + 1);
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> && KeyEqualityWith<Eq, Key, LookupKey>
-	bool EraseKey(const LookupKey& key) {
-		const iterator position = Find(key);
-		if (position == End()) {
+		requires hashable<Hash, LookupKey> && key_equality_with<Eq, Key, LookupKey>
+	bool erase_key(const LookupKey& key) {
+		const iterator position = find(key);
+		if (position == end()) {
 			return false;
 		}
-		Erase(position);
+		erase(position);
 		return true;
 	}
 
-	void Clear() noexcept {
+	void clear() noexcept {
 		if (capacity_ == 0) {
 			return;
 		}
 		for (size_type index = 0; index < capacity_; ++index) {
-			if (IsOccupied(index)) {
-				slots_[index].Destroy();
+			if (is_occupied(index)) {
+				slots_[index].destroy();
 			}
 		}
-		ResetControlBytes();
+		reset_control_bytes();
 		size_ = 0;
-		growth_left_ = CapacityToGrowthLeft(capacity_);
+		growth_left_ = capacity_to_growth_left(capacity_);
 	}
 
-	void Reserve(size_type element_count) {
-		const size_type required_capacity = CapacityForElementCount(element_count);
+	void reserve(size_type element_count) {
+		const size_type required_capacity = capacity_for_element_count(element_count);
 		if (required_capacity > capacity_) {
-			RehashStorage(required_capacity);
+			rehash_storage(required_capacity);
 		}
 	}
 
-	void Rehash(size_type bucket_count) {
+	void rehash(size_type bucket_count) {
 		if (bucket_count == 0 && size_ == 0) {
-			ClearAndDeallocate();
+			clear_and_deallocate();
 			return;
 		}
 		const size_type required_capacity = std::max(
-			NormalizeCapacity(bucket_count), CapacityForElementCount(size_));
-		if (required_capacity != capacity_ || TombstoneCount() != 0) {
-			RehashStorage(required_capacity);
+			normalize_capacity(bucket_count), capacity_for_element_count(size_));
+		if (required_capacity != capacity_ || tombstone_count() != 0) {
+			rehash_storage(required_capacity);
 		}
 	}
 
-	iterator Begin() noexcept { return iterator(this, 0); }
-	iterator End() noexcept { return iterator(this, capacity_); }
-	const_iterator Begin() const noexcept { return const_iterator(this, 0); }
-	const_iterator End() const noexcept {
+	iterator begin() noexcept { return iterator(this, 0); }
+	iterator end() noexcept { return iterator(this, capacity_); }
+	const_iterator begin() const noexcept { return const_iterator(this, 0); }
+	const_iterator end() const noexcept {
 		return const_iterator(this, capacity_);
 	}
-	const_iterator CBegin() const noexcept { return Begin(); }
-	const_iterator CEnd() const noexcept { return End(); }
+	const_iterator cbegin() const noexcept { return begin(); }
+	const_iterator cend() const noexcept { return end(); }
 
  private:
-	RawHashTable(NoAllocateTag, const Hash& hash, const Eq& equal,
+	raw_hash_table(no_allocate_tag, const Hash& hash, const Eq& equal,
 		const Alloc& allocator)
 		: hash_func_(hash), eq_func_(equal), allocator_(allocator) {}
 
-	static constexpr size_type kDefaultCapacity = Group::kWidth;
-	static constexpr float kMaxLoadFactor = 0.875F;
+	static constexpr size_type k_default_capacity = group_type::k_width;
+	static constexpr float k_max_load_factor = 0.875F;
 
-	struct HashParts {
+	struct hash_parts {
 		size_type h1;
 		int8_t h2;
 	};
 
-	struct InsertLocation {
+	struct insert_location {
 		size_type index;
 		int8_t h2;
 		bool found;
 	};
 
-	static const Key& KeyFrom(const value_type& value) noexcept {
+	static const Key& key_from(const value_type& value) noexcept {
 		return KeyOfValue{}(value);
 	}
 
-	static constexpr size_type CapacityToGrowthLeft(size_type capacity) noexcept {
+	static constexpr size_type capacity_to_growth_left(size_type capacity) noexcept {
 		return capacity * 7 / 8;
 	}
 
-	static size_type NormalizeCapacity(size_type bucket_count) {
+	static size_type normalize_capacity(size_type bucket_count) {
 		if (bucket_count > std::numeric_limits<size_type>::max() / 2) {
-			throw std::length_error("RawHashTable: capacity too large");
+			throw std::length_error("raw_hash_table: capacity too large");
 		}
-		size_type capacity = kDefaultCapacity;
+		size_type capacity = k_default_capacity;
 		while (capacity < bucket_count) {
 			capacity <<= 1;
 		}
 		return capacity;
 	}
 
-	static size_type CapacityForElementCount(size_type element_count) {
+	static size_type capacity_for_element_count(size_type element_count) {
 		if (element_count == 0) {
 			return 0;
 		}
-		if (element_count > CapacityToGrowthLeft(
+		if (element_count > capacity_to_growth_left(
 			std::numeric_limits<size_type>::max() / 2)) {
-			throw std::length_error("RawHashTable: element count too large");
+			throw std::length_error("raw_hash_table: element count too large");
 		}
 		const size_type required_buckets =
 			element_count + (element_count + 6) / 7;
-		return NormalizeCapacity(required_buckets);
+		return normalize_capacity(required_buckets);
 	}
 
-	[[nodiscard]] size_type TombstoneCount() const noexcept {
+	[[nodiscard]] size_type tombstone_count() const noexcept {
 		if (capacity_ == 0) {
 			return 0;
 		}
-		return CapacityToGrowthLeft(capacity_) - growth_left_ - size_;
+		return capacity_to_growth_left(capacity_) - growth_left_ - size_;
 	}
 
-	static size_type NextCapacity(size_type capacity) {
+	static size_type next_capacity(size_type capacity) {
 		if (capacity > std::numeric_limits<size_type>::max() / 2) {
-			throw std::length_error("RawHashTable: capacity too large");
+			throw std::length_error("raw_hash_table: capacity too large");
 		}
-		return capacity == 0 ? kDefaultCapacity : capacity * 2;
+		return capacity == 0 ? k_default_capacity : capacity * 2;
 	}
 
-	static HashParts SplitHash(size_type hash_value) noexcept {
+	static hash_parts split_hash(size_type hash_value) noexcept {
 		const size_type h1 = hash_value;
 		size_type folded_hash = hash_value ^ (hash_value >> 7);
 		if constexpr (sizeof(size_type) > 4) {
@@ -516,55 +516,55 @@ class RawHashTable {
 		return {h1, static_cast<int8_t>(folded_hash & 0x7F)};
 	}
 
-	[[nodiscard]] bool IsOccupied(size_type index) const noexcept {
-		return ctrl_[index] != kEmptySlot && ctrl_[index] != kDeletedSlot;
+	[[nodiscard]] bool is_occupied(size_type index) const noexcept {
+		return ctrl_[index] != k_empty_slot && ctrl_[index] != k_deleted_slot;
 	}
 
-	void AllocateStorage(size_type new_capacity) {
+	void allocate_storage(size_type new_capacity) {
 		if (new_capacity >
-			std::numeric_limits<size_type>::max() - Group::kWidth) {
-			throw std::length_error("RawHashTable: capacity too large");
+			std::numeric_limits<size_type>::max() - group_type::k_width) {
+			throw std::length_error("raw_hash_table: capacity too large");
 		}
 		std::unique_ptr<int8_t[]> new_control =
-			std::make_unique<int8_t[]>(new_capacity + Group::kWidth);
-		std::fill_n(new_control.get(), new_capacity + Group::kWidth, kEmptySlot);
+			std::make_unique<int8_t[]>(new_capacity + group_type::k_width);
+		std::fill_n(new_control.get(), new_capacity + group_type::k_width, k_empty_slot);
 
-		SlotAlloc slot_allocator(allocator_);
-		Slot* new_slots = SlotTraits::allocate(slot_allocator, new_capacity);
+		slot_allocator slot_allocator(allocator_);
+		slot* new_slots = slot_traits::allocate(slot_allocator, new_capacity);
 		size_type constructed_count = 0;
 		try {
 			for (; constructed_count < new_capacity; ++constructed_count) {
-				SlotTraits::construct(slot_allocator,
+				slot_traits::construct(slot_allocator,
 					&new_slots[constructed_count]);
 			}
 		} catch (...) {
 			for (size_type index = 0; index < constructed_count; ++index) {
-				SlotTraits::destroy(slot_allocator, &new_slots[index]);
+				slot_traits::destroy(slot_allocator, &new_slots[index]);
 			}
-			SlotTraits::deallocate(slot_allocator, new_slots, new_capacity);
+			slot_traits::deallocate(slot_allocator, new_slots, new_capacity);
 			throw;
 		}
 
 		capacity_ = new_capacity;
 		size_ = 0;
-		growth_left_ = CapacityToGrowthLeft(capacity_);
+		growth_left_ = capacity_to_growth_left(capacity_);
 		ctrl_ = new_control.release();
 		slots_ = new_slots;
-		SyncControlTail();
+		sync_control_tail();
 	}
 
-	void CopyStorageFrom(const RawHashTable& other) {
+	void copy_storage_from(const raw_hash_table& other) {
 		if (other.capacity_ != 0) {
-			AllocateStorage(other.capacity_);
+			allocate_storage(other.capacity_);
 		}
-		for (const_iterator position = other.Begin();
-			 position != other.End(); ++position) {
+		for (const_iterator position = other.begin();
+			 position != other.end(); ++position) {
 			const value_type& value = *position;
-			Insert(value);
+			insert(value);
 		}
 	}
 
-	void SwapStorage(RawHashTable& other) noexcept {
+	void swap_storage(raw_hash_table& other) noexcept {
 		using std::swap;
 		swap(capacity_, other.capacity_);
 		swap(size_, other.size_);
@@ -573,7 +573,7 @@ class RawHashTable {
 		swap(slots_, other.slots_);
 	}
 
-	void StealStorage(RawHashTable& other) noexcept {
+	void steal_storage(raw_hash_table& other) noexcept {
 		capacity_ = std::exchange(other.capacity_, 0);
 		size_ = std::exchange(other.size_, 0);
 		growth_left_ = std::exchange(other.growth_left_, 0);
@@ -582,116 +582,116 @@ class RawHashTable {
 	}
 
 	template <typename LookupKey>
-	size_type FindMatchingIndex(BitMask matches, size_type sequence,
+	size_type find_matching_index(bit_mask matches, size_type sequence,
 		const LookupKey& key) const {
 		while (matches) {
 			const size_type index =
-				(sequence + matches.LowestSetBit()) & (capacity_ - 1);
-			if (eq_func_(KeyFrom(slots_[index].value_), key)) [[likely]] {
+				(sequence + matches.lowest_set_bit()) & (capacity_ - 1);
+			if (eq_func_(key_from(slots_[index].value_), key)) [[likely]] {
 				return index;
 			}
-			matches.ClearLowestSetBit();
+			matches.clear_lowest_set_bit();
 		}
 		return capacity_;
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey>
-	[[nodiscard]] size_type FindIndex(const LookupKey& key) const {
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey>
+	[[nodiscard]] size_type find_index(const LookupKey& key) const {
 		if (capacity_ == 0) {
 			return capacity_;
 		}
-		const auto [h1, h2] = SplitHash(hash_func_(key));
+		const auto [h1, h2] = split_hash(hash_func_(key));
 		size_type sequence = h1 & (capacity_ - 1);
 		while (true) {
-			Group group(ctrl_ + sequence);
-			const size_type index = FindMatchingIndex(group.Match(h2), sequence, key);
+			group_type group(ctrl_ + sequence);
+			const size_type index = find_matching_index(group.match(h2), sequence, key);
 			if (index != capacity_) {
 				return index;
 			}
-			if (group.MatchEmpty()) {
+			if (group.match_empty()) {
 				return capacity_;
 			}
-			sequence = (sequence + Group::kWidth) & (capacity_ - 1);
+			sequence = (sequence + group_type::k_width) & (capacity_ - 1);
 		}
 	}
 
 	template <typename LookupKey>
-		requires Hashable<Hash, LookupKey> &&
-			KeyEqualityWith<Eq, Key, LookupKey>
-	[[nodiscard]] InsertLocation FindInsertLocation(const LookupKey& key) const {
-		const auto [h1, h2] = SplitHash(hash_func_(key));
+		requires hashable<Hash, LookupKey> &&
+			key_equality_with<Eq, Key, LookupKey>
+	[[nodiscard]] insert_location find_insert_location(const LookupKey& key) const {
+		const auto [h1, h2] = split_hash(hash_func_(key));
 		size_type sequence = h1 & (capacity_ - 1);
 		size_type target_index = capacity_;
 		bool found_target = false;
 		while (true) {
-			Group group(ctrl_ + sequence);
-			const size_type index = FindMatchingIndex(group.Match(h2), sequence, key);
+			group_type group(ctrl_ + sequence);
+			const size_type index = find_matching_index(group.match(h2), sequence, key);
 			if (index != capacity_) {
 				return {index, h2, true};
 			}
 
 			if (!found_target) {
-				BitMask available = group.MatchEmptyOrDeleted();
+				bit_mask available = group.match_empty_or_deleted();
 				if (available) {
 					target_index =
-						(sequence + available.LowestSetBit()) & (capacity_ - 1);
+						(sequence + available.lowest_set_bit()) & (capacity_ - 1);
 					found_target = true;
 				}
 			}
-			if (group.MatchEmpty()) {
+			if (group.match_empty()) {
 				assert(found_target && target_index < capacity_);
 				return {target_index, h2, false};
 			}
-			sequence = (sequence + Group::kWidth) & (capacity_ - 1);
+			sequence = (sequence + group_type::k_width) & (capacity_ - 1);
 		}
 	}
 
-	void ResetControlBytes() noexcept {
-		std::fill_n(ctrl_, capacity_ + Group::kWidth, kEmptySlot);
-		SyncControlTail();
+	void reset_control_bytes() noexcept {
+		std::fill_n(ctrl_, capacity_ + group_type::k_width, k_empty_slot);
+		sync_control_tail();
 	}
 
-	void SyncControlTail() noexcept {
+	void sync_control_tail() noexcept {
 		if (capacity_ != 0) {
-			std::copy_n(ctrl_, Group::kWidth, ctrl_ + capacity_);
+			std::copy_n(ctrl_, group_type::k_width, ctrl_ + capacity_);
 		}
 	}
 
-	void SetControlByte(size_type index, int8_t value) noexcept {
+	void set_control_byte(size_type index, int8_t value) noexcept {
 		ctrl_[index] = value;
-		if (index < Group::kWidth) {
+		if (index < group_type::k_width) {
 			ctrl_[capacity_ + index] = value;
 		}
 	}
 
-	void RehashStorage(size_type new_capacity) {
-		RawHashTable replacement(NoAllocateTag{}, hash_func_, eq_func_, allocator_);
-		replacement.AllocateStorage(new_capacity);
+	void rehash_storage(size_type new_capacity) {
+		raw_hash_table replacement(no_allocate_tag{}, hash_func_, eq_func_, allocator_);
+		replacement.allocate_storage(new_capacity);
 		for (size_type index = 0; index < capacity_; ++index) {
-			if (!IsOccupied(index)) {
+			if (!is_occupied(index)) {
 				continue;
 			}
 			if constexpr (std::is_copy_constructible_v<value_type>) {
-				replacement.Insert(slots_[index].value_);
+				replacement.insert(slots_[index].value_);
 			} else {
-				replacement.Insert(std::move(slots_[index].value_));
+				replacement.insert(std::move(slots_[index].value_));
 			}
 		}
-		SwapStorage(replacement);
+		swap_storage(replacement);
 	}
 
-	void ClearAndDeallocate() noexcept {
+	void clear_and_deallocate() noexcept {
 		if (capacity_ == 0) {
 			return;
 		}
-		Clear();
-		SlotAlloc slot_allocator(allocator_);
+		clear();
+		slot_allocator slot_allocator(allocator_);
 		for (size_type index = 0; index < capacity_; ++index) {
-			SlotTraits::destroy(slot_allocator, &slots_[index]);
+			slot_traits::destroy(slot_allocator, &slots_[index]);
 		}
-		SlotTraits::deallocate(slot_allocator, slots_, capacity_);
+		slot_traits::deallocate(slot_allocator, slots_, capacity_);
 		delete[] ctrl_;
 		capacity_ = 0;
 		size_ = 0;
@@ -704,12 +704,12 @@ class RawHashTable {
 	size_type size_ = 0;
 	size_type growth_left_ = 0;
 	int8_t* ctrl_ = nullptr;
-	Slot* slots_ = nullptr;
+	slot* slots_ = nullptr;
 	[[no_unique_address]] Hash hash_func_{};
 	[[no_unique_address]] Eq eq_func_{};
 	[[no_unique_address]] Alloc allocator_{};
 };
 
-}  // namespace nova::containers::detail
+}  // 네임스페이스 nova::containers::detail
 
 #endif  // NOVA_CONTAINERS_DETAIL_RAW_HASH_TABLE_HPP_

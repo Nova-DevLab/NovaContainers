@@ -1,0 +1,49 @@
+diff --git a/include/NovaContainers/list.hpp b/include/NovaContainers/list.hpp
+index 43532df..caedec4 100644
+--- a/include/NovaContainers/list.hpp
++++ b/include/NovaContainers/list.hpp
+@@ -7,6 +7,7 @@
+ #include <compare>
+ #include <concepts>
+ #include <cstddef>
++#include <functional>
+ #include <initializer_list>
+ #include <iterator>
+ #include <limits>
+@@ -290,6 +291,36 @@ class List {
+ 	auto blocks() && = delete;
+ 	auto blocks() const && = delete;
+ 
++
++	// 블록 내부를 연속 순회해 원소마다 블록 경계를 검사하지 않는다.
++	// 콜백에서는 원소 값을 수정할 수 있지만 컨테이너 구조를 변경하면 안 된다.
++	template <typename Function>
++		requires std::invocable<Function&, T&>
++	Function for_each(Function function) & {
++		for (auto block : blocks()) {
++			for (T& value : block) std::invoke(function, value);
++		}
++		return function;
++	}
++	template <typename Function>
++		requires std::invocable<Function&, const T&>
++	Function for_each(Function function) const & {
++		for (auto block : blocks()) {
++			for (const T& value : block) std::invoke(function, value);
++		}
++		return function;
++	}
++	template <typename Function> Function for_each(Function) && = delete;
++	template <typename Function> Function for_each(Function) const && = delete;
++	template <typename Function>
++		requires std::invocable<Function&, T&>
++	Function ForEach(Function function) & { return for_each(std::move(function)); }
++	template <typename Function>
++		requires std::invocable<Function&, const T&>
++	Function ForEach(Function function) const & { return for_each(std::move(function)); }
++	template <typename Function> Function ForEach(Function) && = delete;
++	template <typename Function> Function ForEach(Function) const && = delete;
++
+ 	void reserve_front(size_type count) { ReserveSlots(count, 0); }
+ 	void reserve_back(size_type count) { ReserveSlots(0, count); }
+ 	void reserve(size_type count) {
