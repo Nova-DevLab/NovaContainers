@@ -1,0 +1,26 @@
+{
+  "comparison": "Temporary std::vector with exact reserve versus direct reserve_front/reserve_back insertion. All other container code is identical, including allocator limits. This does not compare std::vector as the destination container.",
+  "count": [
+    128,
+    100000
+  ],
+  "types": [
+    "u64",
+    "record64",
+    "short_string",
+    "long_string"
+  ],
+  "operations": [
+    "range_front",
+    "range_middle",
+    "range_back"
+  ],
+  "timing": "Native heap, 9 alternating samples, 3 iterations per sample, both initial orders",
+  "memory": "Separate requested-byte tracking; includes fixture/input; excludes malloc metadata and RSS",
+  "limits": "Release, BelowNormal, affinity=1, parallel=1, cgthreads1, CGTHREADS:1",
+  "files": {
+    "docs/benchmarks/list_direct_2026-11-04_baseline.hpp": "c1262a289ca8f473193dc97dd42c94d2c7c6135fe5c3936823f4ad3a508f6b06",
+    "docs/benchmarks/list_direct_2026-11-04_candidate.hpp": "094c8456082aee62a7c7b829e663e0dbc5b1efd302a8c50107c0b9002624204e",
+    "benchmarks/list/benchmark_list_memory.cpp": "4041610b885bdbba4b5621705750039750a332d558130db97a5d2cb7b86fcc79"
+  }
+}

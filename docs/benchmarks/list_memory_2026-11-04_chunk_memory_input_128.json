@@ -1,0 +1,18 @@
+{
+  "started_at": "2026-11-04T14:35:57.3808591+09:00",
+  "status": "passed",
+  "count": 128,
+  "iterations": 1,
+  "group": "input",
+  "layout": "fragmented",
+  "reverse_order": false,
+  "native_heap": false,
+  "baseline_header": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\docs\\benchmarks\\list_chunk_2026-11-04_baseline.hpp",
+  "baseline_sha256": "EA47F43E32488003786D4FA3861EA7A304A961B58E1D10F1D30D21C94D66865B",
+  "candidate_header": "",
+  "candidate_sha256": "934730CC24B05CD6165A63F2B48DD975CD7421C39D4A495C3E197F328FBA62C5",
+  "benchmark_sha256": "4041610B885BDBBA4B5621705750039750A332D558130DB97A5D2CB7B86FCC79",
+  "priority": "BelowNormal",
+  "affinity": 1,
+  "finished_at": "2026-11-04T14:35:58.3887649+09:00"
+}

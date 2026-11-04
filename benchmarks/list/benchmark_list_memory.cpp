@@ -154,18 +154,20 @@ T make_value(std::size_t n, bool long_strings) {
 enum class operation {
 	count_front, count_middle, count_back,
 	range_front, range_middle, range_back,
+	input_front, input_middle, input_back,
 	queue_front, queue_back,
 	forward, reverse, index, sort, optimize
 };
 constexpr std::array operations{
 	operation::count_front, operation::count_middle, operation::count_back,
 	operation::range_front, operation::range_middle, operation::range_back,
+	operation::input_front, operation::input_middle, operation::input_back,
 	operation::queue_front, operation::queue_back,
 	operation::forward, operation::reverse, operation::index, operation::sort, operation::optimize
 };
 constexpr std::array names{
 	"count_front", "count_middle", "count_back", "range_front", "range_middle", "range_back",
-	"queue_front", "queue_back", "forward", "reverse", "index", "sort", "optimize"
+	"input_front", "input_middle", "input_back", "queue_front", "queue_back", "forward", "reverse", "index", "sort", "optimize"
 };
 volatile std::uint64_t result_sink = 0;
 std::string_view selected_group = "all";
@@ -193,12 +195,12 @@ struct fixture {
 	fixture(std::size_t count, operation op, bool long_strings)
 		: fill(make_value<value_type>(37, long_strings)) {
 		const bool queue = op == operation::queue_front || op == operation::queue_back;
-		const bool insertion = op <= operation::range_back;
+		const bool insertion = op <= operation::input_back;
 		const std::size_t initial = queue ? std::min(count, std::size_t{256})
 			: insertion ? std::min(count, std::size_t{128}) : count;
 		for (std::size_t i = 0; i < initial; ++i)
 			values.push_back(make_value<value_type>(initial - i, long_strings));
-		if (op >= operation::range_front && op <= operation::range_back) {
+		if (op >= operation::range_front && op <= operation::input_back) {
 			input.reserve(count);
 			for (std::size_t i = 0; i < count; ++i)
 				input.push_back(make_value<value_type>(i, long_strings));
@@ -207,16 +209,34 @@ struct fixture {
 	}
 };
 
+// Expose the same prepared input through a single-pass iterator without a size operation.
+template <typename Iterator>
+struct unsized_input_iterator {
+	using value_type = std::iter_value_t<Iterator>;
+	using difference_type = std::ptrdiff_t;
+	using iterator_concept = std::input_iterator_tag;
+	using iterator_category = std::input_iterator_tag;
+	Iterator current;
+	decltype(auto) operator*() const { return *current; }
+	unsized_input_iterator& operator++() { ++current; return *this; }
+	void operator++(int) { ++current; }
+	bool operator==(const unsized_input_iterator&) const = default;
+};
+
 template <operation Op, typename List>
 NOVA_MEMORY_NOINLINE std::uint64_t apply_case(fixture<List>& data, std::size_t count) {
 	constexpr operation op = Op;
 	auto& values = data.values;
-	if (op <= operation::range_back) {
+	if (op <= operation::input_back) {
 		const unsigned position = static_cast<unsigned>(op) % 3;
 		const std::size_t index = position == 0 ? 0 : position == 1 ? values.size() / 2 : values.size();
 		const auto where = values.cbegin() + static_cast<std::ptrdiff_t>(index);
 		if (op <= operation::count_back) values.insert(where, count, data.fill);
-		else values.insert(where, data.input.begin(), data.input.end());
+		else if (op <= operation::range_back) values.insert(where, data.input.begin(), data.input.end());
+		else {
+			using input_iterator = unsized_input_iterator<typename std::vector<typename List::value_type>::const_iterator>;
+			values.insert(where, input_iterator{data.input.cbegin()}, input_iterator{data.input.cend()});
+		}
 		return 0;
 	}
 	if (op == operation::queue_front || op == operation::queue_back) {
@@ -258,6 +278,9 @@ std::uint64_t apply(fixture<List>& data, std::size_t count, operation op) {
 	case operation::range_front: return apply_case<operation::range_front>(data, count);
 	case operation::range_middle: return apply_case<operation::range_middle>(data, count);
 	case operation::range_back: return apply_case<operation::range_back>(data, count);
+	case operation::input_front: return apply_case<operation::input_front>(data, count);
+	case operation::input_middle: return apply_case<operation::input_middle>(data, count);
+	case operation::input_back: return apply_case<operation::input_back>(data, count);
 	case operation::queue_front: return apply_case<operation::queue_front>(data, count);
 	case operation::queue_back: return apply_case<operation::queue_back>(data, count);
 	case operation::forward: return apply_case<operation::forward>(data, count);
@@ -334,6 +357,7 @@ void run_type(const char* type, std::size_t count, std::size_t iterations, bool 
 		if (queue != queues_only) continue;
 		if (selected_group == "count" && op > operation::count_back) continue;
 		if (selected_group == "range" && (op < operation::range_front || op > operation::range_back)) continue;
+		if (selected_group == "input" && (op < operation::input_front || op > operation::input_back)) continue;
 		if (selected_group == "queue" && !queue) continue;
 		if (selected_group == "control" && op < operation::forward) continue;
 		const auto before_memory = measure_memory<before_list>(count, op, long_strings);
@@ -383,8 +407,8 @@ int main(int argc, char** argv) {
 		if (selected_layout != "fragmented" && selected_layout != "contiguous")
 			throw std::invalid_argument("layout must be fragmented or contiguous");
 		if (selected_group != "all" && selected_group != "count" && selected_group != "range"
-			&& selected_group != "queue" && selected_group != "control")
-			throw std::invalid_argument("group must be all, count, range, queue or control");
+			&& selected_group != "input" && selected_group != "queue" && selected_group != "control")
+			throw std::invalid_argument("group must be all, count, range, input, queue or control");
 		if (count == 0 || count > 10000000 || iterations == 0 || iterations > 1000)
 			throw std::invalid_argument("count must be 1..10000000; iterations must be 1..1000");
 #if !defined(NOVA_LIST_BASELINE_HEADER)

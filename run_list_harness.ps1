@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
 	[string]$BuildDirectory = "build/list-release",
-	[switch]$BuildOnly
+	[switch]$BuildOnly,
+	[switch]$AddressSanitizer
 )
 
 Set-StrictMode -Version Latest
@@ -9,6 +10,9 @@ $ErrorActionPreference = "Stop"
 # PowerShell 7 must also route native failures through the recorded exit code.
 $PSNativeCommandUseErrorActionPreference = $false
 
+if ($AddressSanitizer -and -not $PSBoundParameters.ContainsKey("BuildDirectory")) {
+	$BuildDirectory = "build/list-asan"
+}
 if (-not [System.IO.Path]::IsPathRooted($BuildDirectory)) {
 	$BuildDirectory = Join-Path $PSScriptRoot $BuildDirectory
 }
@@ -19,13 +23,14 @@ $summary_path = Join-Path $log_directory "summary.json"
 $process = [System.Diagnostics.Process]::GetCurrentProcess()
 $original_priority = $process.PriorityClass
 $original_affinity = $process.ProcessorAffinity
-$environment_names = @("_CL_", "_LINK_", "CMAKE_BUILD_PARALLEL_LEVEL", "CTEST_PARALLEL_LEVEL")
+$environment_names = @("_CL_", "_LINK_", "CMAKE_BUILD_PARALLEL_LEVEL", "CTEST_PARALLEL_LEVEL", "PATH", "ASAN_OPTIONS")
 $original_environment = @{}
 foreach ($name in $environment_names) {
 	$original_environment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
 }
 $summary = [ordered]@{
 	configuration = "Release"
+	address_sanitizer = [bool]$AddressSanitizer
 	build_directory = $BuildDirectory
 	started_at = [DateTimeOffset]::Now.ToString("o")
 	build = "not_run"
@@ -71,10 +76,31 @@ try {
 	$summary.affinity = $process.ProcessorAffinity.ToInt64()
 	$cmake = (Get-Command cmake -CommandType Application -ErrorAction Stop).Source
 	$ctest = (Get-Command ctest -CommandType Application -ErrorAction Stop).Source
-	Invoke-ValidationStep "configure" $cmake @(
+	$configure_arguments = @(
 		"-S", $PSScriptRoot, "-B", $BuildDirectory,
 		"-DCMAKE_BUILD_TYPE=Release", "-DNOVA_BUILD_TESTS=ON", "-DNOVA_BUILD_BENCHMARKS=OFF"
 	)
+	if ($AddressSanitizer) {
+		$configure_arguments += @(
+			"-DCMAKE_CXX_FLAGS=/EHsc /fsanitize=address /Zi",
+			"-DCMAKE_EXE_LINKER_FLAGS=/INCREMENTAL:NO /DEBUG"
+		)
+		$env:ASAN_OPTIONS = "halt_on_error=1:alloc_dealloc_mismatch=1"
+	}
+	Invoke-ValidationStep "configure" $cmake $configure_arguments
+	if ($AddressSanitizer) {
+		$compiler_file = Get-ChildItem -Path (Join-Path $BuildDirectory "CMakeFiles/*/CMakeCXXCompiler.cmake") |
+			Sort-Object LastWriteTime -Descending | Select-Object -First 1
+		if (-not $compiler_file) { throw "CMake compiler metadata was not found." }
+		$compiler_line = Get-Content -LiteralPath $compiler_file.FullName |
+			Where-Object { $_ -match '^set\(CMAKE_CXX_COMPILER "([^"\r\n]+)"\)' } | Select-Object -First 1
+		if (-not $compiler_line) { throw "MSVC compiler path was not found in the CMake metadata." }
+		$compiler_path = [regex]::Match($compiler_line, '^set\(CMAKE_CXX_COMPILER "([^"\r\n]+)"\)').Groups[1].Value
+		$compiler_directory = Split-Path $compiler_path
+		$runtime = Join-Path $compiler_directory "clang_rt.asan_dynamic-x86_64.dll"
+		if (-not (Test-Path -LiteralPath $runtime)) { throw "MSVC x64 ASan runtime was not found: $runtime" }
+		$env:PATH = "$compiler_directory;$env:PATH"
+	}
 	$build_arguments = @(
 		"--build", $BuildDirectory, "--config", "Release", "--parallel", "1",
 		"--target", "nova_containers_list_tests", "nova_containers_list_optimize_tests"

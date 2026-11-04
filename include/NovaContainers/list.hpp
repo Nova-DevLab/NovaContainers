@@ -266,8 +266,10 @@ class list {
 		return directory_.empty() ? 0 : allocated_end_ * k_block_capacity - first_ - size_;
 	}
 	[[nodiscard]] size_type max_size() const noexcept {
-		return std::min(traits::max_size(allocator_),
+		const size_type limit = std::min(traits::max_size(allocator_),
 			static_cast<size_type>(std::numeric_limits<difference_type>::max()) / 4);
+		// 블록 하나도 할당할 수 없으면 비어 있는 상태만 지원한다.
+		return limit < k_block_capacity ? 0 : limit;
 	}
 	[[nodiscard]] allocator_type get_allocator() const { return allocator_; }
 	reference operator[](size_type index) noexcept {
@@ -475,17 +477,85 @@ class list {
 	template <std::input_iterator InputIt>
 	iterator insert(const_iterator position, InputIt first, InputIt last) {
 		const size_type index = iterator_position(position);
+		// 소유 범위를 확인할 수 있는 반복자는 예약 후 인덱스로 다시 접근한다.
+		if constexpr (std::sized_sentinel_for<InputIt, InputIt> &&
+			(std::is_same_v<InputIt, iterator> || std::is_same_v<InputIt, const_iterator> ||
+				(std::contiguous_iterator<InputIt> &&
+				 std::is_same_v<std::remove_cvref_t<std::iter_reference_t<InputIt>>, T>))) {
+			const size_type count = static_cast<size_type>(last - first);
+			check_growth(count);
+			if (count == 0) return begin() + static_cast<difference_type>(index);
+			const size_type previous = size_;
+			size_type source = previous;
+			const T* address = std::addressof(*first);
+			size_type offset = 0;
+			for (auto block : blocks()) {
+				const std::less<const T*> less;
+				if (!less(address, block.data()) && less(address, block.data() + block.size())) {
+					source = offset + static_cast<size_type>(address - block.data());
+					break;
+				}
+				offset += block.size();
+			}
+			const bool front = index < previous - index;
+			if (front) reserve_front(count);
+			else reserve_back(count);
+			try {
+				for (size_type n = 0; n < count; ++n) {
+					const size_type input = front ? count - 1 - n : n;
+					if (source != previous) {
+						// 앞에 추가한 개수만큼 기존 원소의 인덱스를 보정한다.
+						const size_type shifted = front ? size_ - previous : 0;
+						if (front) emplace_front((*this)[source + input + shifted]);
+						else emplace_back((*this)[source + input]);
+					} else {
+						if (front) emplace_front(*(first + static_cast<difference_type>(input)));
+						else emplace_back(*(first + static_cast<difference_type>(input)));
+					}
+				}
+			} catch (...) {
+				while (size_ > previous) {
+					if (front) pop_front();
+					else pop_back();
+				}
+				throw;
+			}
+			if (front) std::rotate(begin(), begin() + static_cast<difference_type>(count),
+				begin() + static_cast<difference_type>(count + index));
+			else std::rotate(begin() + static_cast<difference_type>(index),
+				begin() + static_cast<difference_type>(previous), end());
+			return begin() + static_cast<difference_type>(index);
+		}
 		std::vector<T, Alloc> values(allocator_);
-		// 같은 조건의 범위 뒤 삽입 최고 요청량: 21,692,557 -> 19,244,237B.
+		list chunked(allocator_);
+		bool use_chunks = false;
 		if constexpr (std::sized_sentinel_for<InputIt, InputIt>) {
 			const size_type count = static_cast<size_type>(last - first);
 			check_growth(count);
-			values.reserve(count);
+			use_chunks = count > k_block_capacity;
+			if (use_chunks) chunked.reserve_back(count);
+			else values.reserve(count);
 		}
 		for (; first != last; ++first) {
-			if (values.size() == max_size() - size_) throw std::length_error("nova::list capacity");
-			values.emplace_back(*first);
+			const size_type buffered = use_chunks ? chunked.size() : values.size();
+			if (buffered == max_size() - size_) throw std::length_error("nova::list capacity");
+			// 작은 범위는 기존 버퍼를 쓰고 한 블록을 넘으면 청크로 전환한다.
+			if (!use_chunks && values.size() == k_block_capacity) {
+				chunked.reserve_back(k_block_capacity);
+				for (T& value : values) chunked.emplace_back(std::move_if_noexcept(value));
+				std::vector<T, Alloc>(allocator_).swap(values);
+				use_chunks = true;
+			}
+			if (use_chunks) chunked.emplace_back(*first);
+			else {
+				// 단일 패스 입력에서도 vector의 성장 할당이 블록 크기를 넘지 않게 한다.
+				if (values.size() == values.capacity()) {
+					values.reserve(values.empty() ? 1 : std::min(k_block_capacity, values.size() * 2));
+				}
+				values.emplace_back(*first);
+			}
 		}
+		if (use_chunks) return insert_buffered(index, chunked);
 		return insert_buffered(index, values);
 	}
 	iterator insert(const_iterator position, std::initializer_list<T> values) {
@@ -635,12 +705,27 @@ class list {
 	void release_front_blocks() noexcept {
 		const size_type keep = first_ / k_block_capacity;
 		while (allocated_begin_ < keep) {
+			if (!directory_[allocated_begin_].owned && main_ != nullptr) {
+				// 살아 있는 메인 배열의 앞 여유는 다음 삽입에서 재사용한다.
+				if (!directory_[keep].owned) break;
+				// 모든 원소가 외부 블록으로 넘어가면 메인 배열 전체를 반환한다.
+				traits::deallocate(allocator_, main_, main_capacity_);
+				main_ = nullptr;
+				main_capacity_ = 0;
+			}
 			release_block(allocated_begin_++);
 		}
 	}
 	void release_back_blocks() noexcept {
 		const size_type keep = (first_ + size_ + k_block_capacity - 1) / k_block_capacity;
 		while (allocated_end_ > keep) {
+			if (!directory_[allocated_end_ - 1].owned && main_ != nullptr) {
+				// 살아 있는 메인 배열의 뒤 여유도 용량에 포함해 유지한다.
+				if (!directory_[keep - 1].owned) break;
+				traits::deallocate(allocator_, main_, main_capacity_);
+				main_ = nullptr;
+				main_capacity_ = 0;
+			}
 			--allocated_end_;
 			release_block(allocated_end_);
 		}
@@ -691,7 +776,8 @@ class list {
 		try { while (size_ < count) append(); }
 		catch (...) { while (size_ > previous) pop_back(); throw; }
 	}
-	iterator insert_buffered(size_type index, std::vector<T, Alloc>& values) {
+	template <typename Buffer>
+	iterator insert_buffered(size_type index, Buffer& values) {
 		const size_type count = values.size();
 		check_growth(count);
 		if (count == 0) return begin() + static_cast<difference_type>(index);

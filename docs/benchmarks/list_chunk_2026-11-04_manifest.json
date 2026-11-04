@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-04",
+  "candidate_sha256": "934730cc24b05cd6165a63f2b48dd975cd7421c39d4a495c3e197f328fba62c5",
+  "baseline_sha256": "ea47f43e32488003786d4fa3861ea7a304a961b58e1d10f1d30d21c94d66865b",
+  "benchmark_sha256": "4041610b885bdbba4b5621705750039750a332d558130db97a5d2cb7b86fcc79",
+  "comparison": "Prior vector range insertion versus chunked range insertion; allocator max_size boundary handling also differs. Both retain the earlier main-array capacity fix.",
+  "timing": "Native heap runs are used for time comparisons. Requested-byte tracking runs are used for memory comparisons. Nine alternating A/B samples after warmup; each row is an average of the specified iteration count.",
+  "memory": "Includes requested bytes for input, live elements, temporary buffers, directory and string storage; excludes tracking headers, malloc metadata and process working set. Memory measurements are performed once per case, not once per timing row.",
+  "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+  "logical_processors": 8,
+  "compiler": "MSVC 19.51, x64 Release C++20, AVX2",
+  "limits": {
+    "priority": "BelowNormal",
+    "affinity": 1,
+    "parallel_jobs": 1,
+    "codegen_threads": 1,
+    "link_threads": 1
+  },
+  "candidate_snapshot": "list_chunk_2026-11-04_candidate.hpp",
+  "baseline_snapshot": "list_chunk_2026-11-04_baseline.hpp",
+  "input_iterator": "Prepared vector exposed through an input iterator without subtraction; parser, stream and I/O costs are excluded.",
+  "scope": "128 and 100000 inserted elements; four element types; front/middle/back; fragmented layout. Control operations also measured. No generalization to other machines, allocators, block sizes or counts."
+}

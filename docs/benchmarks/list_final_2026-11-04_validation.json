@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-04",
+  "scope": "nova::list final local validation",
+  "header_sha256": "094c8456082aee62a7c7b829e663e0dbc5b1efd302a8c50107c0b9002624204e",
+  "asan": {
+    "configuration": "Release",
+    "address_sanitizer": true,
+    "build_directory": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan",
+    "started_at": "2026-11-04T16:10:46.5268421+09:00",
+    "build": "passed",
+    "harness": "passed",
+    "status": "passed",
+    "steps": [
+      {
+        "name": "configure",
+        "exit_code": 0,
+        "seconds": 0.178,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\configure.log"
+      },
+      {
+        "name": "build",
+        "exit_code": 0,
+        "seconds": 26.575,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\build.log"
+      },
+      {
+        "name": "harness",
+        "exit_code": 0,
+        "seconds": 2.257,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\harness.log"
+      }
+    ],
+    "error": null,
+    "priority": "BelowNormal",
+    "affinity": 1,
+    "finished_at": "2026-11-04T16:11:15.6910049+09:00"
+  },
+  "regular_release": {
+    "configuration": "Release",
+    "address_sanitizer": false,
+    "build_directory": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release",
+    "started_at": "2026-11-04T16:13:06.1424450+09:00",
+    "build": "passed",
+    "harness": "passed",
+    "status": "passed",
+    "steps": [
+      {
+        "name": "configure",
+        "exit_code": 0,
+        "seconds": 0.165,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\configure.log"
+      },
+      {
+        "name": "build",
+        "exit_code": 0,
+        "seconds": 1.279,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\build.log"
+      },
+      {
+        "name": "harness",
+        "exit_code": 0,
+        "seconds": 0.169,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\harness.log"
+      }
+    ],
+    "error": null,
+    "priority": "BelowNormal",
+    "affinity": 1,
+    "finished_at": "2026-11-04T16:13:07.8416543+09:00"
+  },
+  "unverified": [
+    "Latest source under Linux GCC/Clang",
+    "Linux ASan+UBSan and leak diagnostics"
+  ],
+  "configuration_correction": "Initial ASan configuration omitted /EHsc; corrected /EHsc and reran successfully; no library source change.",
+  "harness_sha256": "17156e72c647b6ff102f68be54a527fbdf70a0b4a09972770511572750427533"
+}

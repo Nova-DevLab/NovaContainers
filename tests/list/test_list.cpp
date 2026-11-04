@@ -57,7 +57,8 @@ void test_basic_and_iterators() {
 	static_assert(std::random_access_iterator<list_type::iterator>);
 	static_assert(std::random_access_iterator<list_type::const_iterator>);
 	static_assert(std::ranges::random_access_range<list_type>);
-	static_assert(!std::contiguous_iterator<list_type::iterator>);	static_assert(std::is_convertible_v<list_type::iterator, list_type::const_iterator>);
+	static_assert(!std::contiguous_iterator<list_type::iterator>);
+	static_assert(std::is_convertible_v<list_type::iterator, list_type::const_iterator>);
 	static_assert(!std::is_convertible_v<list_type::const_iterator, list_type::iterator>);
 	list_type values;
 	require(values.empty(), "default list is not empty");
@@ -563,6 +564,8 @@ void test_throwing_range_insert() {
 
 struct allocation_state {
 	std::map<void*, std::size_t> allocations;
+	std::size_t allocation_limit = std::numeric_limits<std::size_t>::max();
+	std::size_t maximum_request = 0;
 	int budget = -1;
 };
 
@@ -580,7 +583,13 @@ struct tracking_allocator {
 	explicit tracking_allocator(std::shared_ptr<allocation_state> initial) : state(std::move(initial)) {}
 	template <typename U>
 	tracking_allocator(const tracking_allocator<U, Propagate>& other) noexcept : state(other.state) {}
+	std::size_t max_size() const noexcept {
+		return std::min(state->allocation_limit,
+			std::allocator_traits<std::allocator<T>>::max_size(std::allocator<T>{}));
+	}
 	T* allocate(std::size_t count) {
+		if (count > max_size()) throw std::runtime_error("allocator limit bypassed");
+		state->maximum_request = std::max(state->maximum_request, count);
 		if (state->budget == 0) {
 			throw std::bad_alloc();
 		}
@@ -638,6 +647,142 @@ void test_allocator_propagation() {
 	}
 	require(first->allocations.empty() && second->allocations.empty(),
 		"allocator blocks leaked or ownership mismatch");
+}
+
+void test_allocator_block_limits() {
+	using allocator_type = tracking_allocator<int, false>;
+	using list_type = nova::list<int, allocator_type, 16>;
+	auto state = std::make_shared<allocation_state>();
+	state->allocation_limit = 3;
+	{
+		list_type values{allocator_type(state)};
+		require(values.max_size() == 0, "allocator smaller than one block exposed usable capacity");
+		const auto expect_length_error = [](auto operation) {
+			bool threw = false;
+			try { operation(); } catch (const std::length_error&) { threw = true; }
+			require(threw, "unsupported block allocation was not rejected as a length error");
+		};
+		expect_length_error([&] { values.emplace_back(1); });
+		expect_length_error([&] { values.emplace_front(1); });
+		expect_length_error([&] { values.reserve_back(1); });
+		expect_length_error([&] { values.reserve_front(1); });
+		const std::array source{1};
+		expect_length_error([&] { values.insert(values.begin(), source.begin(), source.end()); });
+		values.insert(values.begin(), source.begin(), source.begin());
+		require(values.empty() && state->maximum_request == 0,
+			"zero maximum size attempted an element allocation");
+	}
+	{
+		nova::list<int, allocator_type, 4> values{allocator_type(state)};
+		values.assign({1, 2, 3});
+		require(values.max_size() == 3 && values.size() == 3,
+			"smaller blocks did not support the limited allocator");
+	}
+	for (std::size_t limit : {std::size_t{4}, std::size_t{5}}) {
+		state->allocation_limit = limit;
+		list_type values{allocator_type(state)};
+		for (std::size_t i = 0; i < limit; ++i) values.push_back(static_cast<int>(i));
+		bool threw = false;
+		try { values.push_back(9); } catch (const std::length_error&) { threw = true; }
+		require(threw && values.size() == limit, "allocator maximum size boundary was exceeded");
+		if (limit == 4) values.optimize();
+		else {
+			threw = false;
+			try { values.optimize(); } catch (const std::length_error&) { threw = true; }
+			require(threw && values.size() == limit, "rounded optimize allocation exceeded allocator limit");
+		}
+	}
+	require(state->allocations.empty(), "limited allocator leaked storage");
+}
+
+template <typename Iterator>
+struct unsized_input_iterator {
+	using value_type = std::iter_value_t<Iterator>;
+	using difference_type = std::ptrdiff_t;
+	using iterator_concept = std::input_iterator_tag;
+	using iterator_category = std::input_iterator_tag;
+	Iterator current;
+	decltype(auto) operator*() const { return *current; }
+	unsized_input_iterator& operator++() { ++current; return *this; }
+	void operator++(int) { ++current; }
+	bool operator==(const unsized_input_iterator&) const = default;
+};
+
+void test_chunked_input_copy_failure() {
+	for (int budget : {0, 2, 4, 5, 8}) {
+		{
+			nova::list<tracked, std::allocator<tracked>, 16> values;
+			values.emplace_back(-1);
+			std::array<tracked, 9> source;
+			for (std::size_t i = 0; i < source.size(); ++i) source[i].value = static_cast<int>(i);
+			using iterator_type = unsized_input_iterator<decltype(source.begin())>;
+			static_assert(std::input_iterator<iterator_type>);
+			static_assert(!std::sized_sentinel_for<iterator_type, iterator_type>);
+			tracked::construction_budget = budget;
+			bool threw = false;
+			try { values.insert(values.begin(), iterator_type{source.begin()}, iterator_type{source.end()}); }
+			catch (const std::runtime_error&) { threw = true; }
+			tracked::construction_budget = -1;
+			require(threw && values.size() == 1 && values.front().value == -1,
+				"single-pass copy failure changed existing elements");
+			require(tracked::live == static_cast<int>(values.size() + source.size()),
+				"single-pass chunk transition leaked constructed elements");
+			for (std::size_t i = 0; i < source.size(); ++i)
+				require(source[i].value == static_cast<int>(i), "chunk migration modified copied input");
+		}
+		require(tracked::live == 0, "single-pass chunk cleanup leaked elements");
+	}
+}
+
+void test_chunked_range_insert() {
+	using allocator_type = tracking_allocator<int, false>;
+	using list_type = nova::list<int, allocator_type, 16>;
+	for (bool input_range : {false, true}) {
+		for (std::size_t position : {std::size_t{0}, std::size_t{1}, std::size_t{3}}) {
+			auto state = std::make_shared<allocation_state>();
+			{
+				list_type values({-3, -2, -1}, allocator_type(state));
+				std::vector<int> source(33);
+				std::iota(source.begin(), source.end(), 0);
+				std::vector<int> expected{-3, -2, -1};
+				expected.insert(expected.begin() + static_cast<std::ptrdiff_t>(position), source.begin(), source.end());
+				const auto insertion = values.begin() + static_cast<std::ptrdiff_t>(position);
+				if (input_range) {
+					std::ostringstream text;
+					for (int value : source) text << value << ' ';
+					std::istringstream input(text.str());
+					values.insert(insertion, std::istream_iterator<int>(input), std::istream_iterator<int>());
+				} else values.insert(insertion, source.begin(), source.end());
+				require_equal(values, expected);
+				require(state->maximum_request <= list_type::k_block_capacity,
+					"range insertion requested a contiguous element buffer larger than one block");
+			}
+			require(state->allocations.empty(), "chunked insertion leaked allocator storage");
+		}
+	}
+	for (bool input_range : {false, true}) {
+		for (int budget : {0, 1, 2, 3, 4, 5, 6, 7}) {
+			auto state = std::make_shared<allocation_state>();
+			{
+				list_type values({-3, -2, -1}, allocator_type(state));
+				const std::array source{0, 1, 2, 3, 4, 5, 6, 7, 8};
+				state->budget = budget;
+				bool threw = false;
+				try {
+					if (input_range) {
+						std::istringstream input("0 1 2 3 4 5 6 7 8");
+						values.insert(values.begin() + 1, std::istream_iterator<int>(input), std::istream_iterator<int>());
+					} else values.insert(values.begin() + 1, source.begin(), source.end());
+				} catch (const std::bad_alloc&) { threw = true; }
+				state->budget = -1;
+				if (threw) require_equal(values, std::vector<int>{-3, -2, -1});
+				else require_equal(values, std::vector<int>{-3, 0, 1, 2, 3, 4, 5, 6, 7, 8, -2, -1});
+				values.push_back(42);
+				require(values.back() == 42, "chunked insertion allocation failure prevented reuse");
+			}
+			require(state->allocations.empty(), "failed chunked insertion leaked storage");
+		}
+	}
 }
 
 void test_allocation_failure_and_alignment() {
@@ -736,6 +881,37 @@ void test_self_ranges_and_input_iterators() {
 	std::istringstream assign_input("7 8 9");
 	input_values.assign(std::istream_iterator<int>(assign_input), std::istream_iterator<int>());
 	require_equal(input_values, std::vector<int>{7, 8, 9});
+}
+
+void test_direct_self_range_insert() {
+	using list_type = nova::list<int, std::allocator<int>, 16>;
+	for (bool optimized : {false, true}) {
+		for (int kind = 0; kind < 5; ++kind) {
+			if (kind == 2 && !optimized) continue;
+			for (int position : {0, 1, 16, 31, 32}) {
+				list_type values;
+				std::vector<int> expected(32);
+				std::iota(expected.begin(), expected.end(), 0);
+				for (int value : expected) values.push_back(value);
+				if (optimized) values.optimize();
+				std::vector<int> source(expected.begin() + 1, expected.end() - 1);
+				if (kind == 3) std::reverse(source.begin(), source.end());
+				expected.insert(expected.begin() + position, source.begin(), source.end());
+				auto insertion = values.begin() + position;
+				list_type::iterator result;
+				if (kind == 0) result = values.insert(insertion, values.begin() + 1, values.end() - 1);
+				else if (kind == 1) result = values.insert(insertion, values.cbegin() + 1, values.cend() - 1);
+				else if (kind == 2) {
+					auto view = values.contiguous_view();
+					result = values.insert(insertion, view.data() + 1, view.data() + view.size() - 1);
+				} else if (kind == 3) result = values.insert(insertion, values.rbegin() + 1, values.rend() - 1);
+				else result = values.insert(insertion, std::make_move_iterator(values.begin() + 1),
+					std::make_move_iterator(values.end() - 1));
+				require_equal(values, expected);
+				require(result == values.begin() + position, "self range returned an incorrect position");
+			}
+		}
+	}
 }
 
 void test_sized_range_insert_storage_modes() {
@@ -1078,12 +1254,16 @@ int main() {
 		test_throwing_range_insert();
 		test_allocator_propagation<false>();
 		test_allocator_propagation<true>();
+		test_allocator_block_limits();
+		test_chunked_range_insert();
+		test_chunked_input_copy_failure();
 		test_allocation_failure_and_alignment();
 		test_tiny_blocks_and_sliding_queue<4>();
 		test_tiny_blocks_and_sliding_queue<8>();
 		test_tiny_blocks_and_sliding_queue<16>();
 		test_self_ranges_and_input_iterators();
 		test_sized_range_insert_storage_modes();
+		test_direct_self_range_insert();
 		test_mixed_directory_recenter_ownership();
 		test_empty_reserve_failure();
 		test_iterator_terminal_boundaries<4>();

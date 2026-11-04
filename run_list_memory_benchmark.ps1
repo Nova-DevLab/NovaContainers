@@ -5,7 +5,7 @@ param(
 	[ValidatePattern('^[A-Za-z0-9_-]+$')][string]$Label = "final",
 	[int]$Count = 100000,
 	[int]$Iterations = 3,
-	[ValidateSet("all", "count", "range", "queue", "control")][string]$Group = "all",
+	[ValidateSet("all", "count", "range", "input", "queue", "control")][string]$Group = "all",
 	[ValidateSet("fragmented", "contiguous")][string]$Layout = "fragmented",
 	[switch]$ReverseOrder,
 	[switch]$NativeHeap

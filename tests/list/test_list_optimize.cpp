@@ -435,6 +435,95 @@ struct checked_allocator {
 	}
 };
 
+template <std::size_t BlockBytes>
+void test_main_capacity_reuse() {
+	using allocator_type = checked_allocator<int, false>;
+	using list_type = nova::list<int, allocator_type, BlockBytes>;
+	constexpr std::size_t width = list_type::k_block_capacity;
+	auto state = std::make_shared<allocation_state>();
+	{
+		list_type values{allocator_type(state)};
+		const std::size_t count = width * 3 + 1;
+		for (std::size_t i = 0; i < count; ++i) values.push_back(static_cast<int>(i));
+		values.optimize();
+		int* base = values.contiguous_view().data();
+		const std::size_t capacity = values.capacity();
+		require(capacity == width * 4, "unexpected rounded main capacity");
+		state->budget = 0;
+		for (std::size_t i = 0; i < width + 1; ++i) values.pop_front();
+		for (std::size_t i = 0; i < width; ++i) values.pop_back();
+		require(values.capacity() == capacity, "trimming discarded reusable main capacity");
+		require(values.front_capacity() == width + 1
+			&& values.back_capacity() == width * 2 - 1,
+			"trimmed main directional capacity mismatch");
+		for (std::size_t i = width + 1; i > 0; --i) values.push_front(static_cast<int>(i - 1));
+		while (values.size() < capacity) values.push_back(static_cast<int>(values.size()));
+		require(values.contiguous_view().data() == base && state->allocations.size() == 1,
+			"refill did not reuse the original main allocation");
+		for (std::size_t i = 0; i < capacity; ++i)
+			require(values[i] == static_cast<int>(i), "main refill changed element order");
+		while (!values.empty()) values.pop_front();
+		require(values.capacity() == capacity, "emptying discarded main capacity");
+		const std::size_t front_slots = values.front_capacity();
+		const std::size_t back_slots = values.back_capacity();
+		require(front_slots + back_slots == capacity, "empty main capacity partition mismatch");
+		values.reserve_front(front_slots);
+		values.reserve_back(back_slots);
+		for (std::size_t i = 0; i < front_slots; ++i) values.push_front(1);
+		for (std::size_t i = 0; i < back_slots; ++i) values.push_back(2);
+		require(values.is_contiguous() && values.contiguous_view().data() == base,
+			"empty main allocation could not be reused in both directions");
+		values.clear();
+		require(values.capacity() == capacity, "clear discarded main capacity");
+		for (std::size_t i = 0; i < capacity; ++i) values.push_back(static_cast<int>(i));
+		state->budget = -1;
+		values.push_front(-1);
+		values.push_back(static_cast<int>(capacity));
+		require(!values.is_contiguous(), "overflow blocks unexpectedly contiguous");
+		values.pop_front();
+		values.pop_back();
+		require(values.capacity() == capacity && state->allocations.size() == 1,
+			"unused overflow blocks were retained or main slices were discarded");
+		require(values.contiguous_view().data() == base, "overflow removal lost the main allocation");
+		values.push_back(static_cast<int>(capacity));
+		for (std::size_t i = 0; i < capacity; ++i) values.pop_front();
+		require(values.capacity() == width && state->allocations.size() == 1,
+			"completely unused main allocation was not released");
+		state->budget = 0;
+		while (values.back_capacity() > 0) values.push_back(3);
+		require(values.capacity() == values.front_capacity() + values.size() + values.back_capacity(),
+			"mixed storage capacity partition mismatch");
+		state->budget = -1;
+		values.clear();
+		values.optimize();
+		require(values.capacity() == 0 && state->allocations.empty(),
+			"empty optimize did not release retained capacity");
+	}
+
+	for (bool overflow_front : {false, true}) {
+		list_type values{allocator_type(state)};
+		for (std::size_t i = 0; i < width * 3; ++i) values.push_back(static_cast<int>(i));
+		values.optimize();
+		if (overflow_front) values.push_front(-1);
+		else values.push_back(-1);
+		for (std::size_t i = 0; i < width * 3; ++i) {
+			if (overflow_front) values.pop_back();
+			else values.pop_front();
+		}
+		require(values.size() == 1 && values.front() == -1
+			&& values.capacity() == width && state->allocations.size() == 1,
+			"unused main allocation was not released in both directions");
+		for (std::size_t i = 0; i < width * 20; ++i) {
+			if (overflow_front) { values.push_front(-1); values.pop_back(); }
+			else { values.push_back(-1); values.pop_front(); }
+			require(values.capacity() <= width * 2,
+				"sliding queue retained obsolete blocks after leaving the main allocation");
+		}
+	}
+	require(state->allocations.empty() && state->constructed == state->destroyed,
+		"main capacity reuse leaked storage or live objects");
+}
+
 void test_optimize_reclaims_storage() {
 	using allocator_type = checked_allocator<int, false>;
 	using list_type = nova::list<int, allocator_type, 16>;
@@ -650,6 +739,9 @@ int main() {
 	try {
 		test_empty_and_single_block_contiguity();
 		test_optimize_reclaims_storage();
+		test_main_capacity_reuse<4>();
+		test_main_capacity_reuse<16>();
+		test_main_capacity_reuse<16384>();
 		test_optimize_boundaries<4>();
 		test_optimize_boundaries<8>();
 		test_optimize_boundaries<16>();

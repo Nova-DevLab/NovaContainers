@@ -1,0 +1,81 @@
+{
+  "candidate_sha256": "934730cc24b05cd6165a63f2b48dd975cd7421c39d4a495c3e197f328fba62c5",
+  "baseline_sha256": "ea47f43e32488003786d4fa3861ea7a304a961b58e1d10f1d30d21c94d66865b",
+  "runs": [
+    {
+      "file": "list_memory_2026-11-04_chunk_memory_input_100k.json",
+      "status": "passed",
+      "count": 100000,
+      "group": "input",
+      "native_heap": false,
+      "reverse_order": false,
+      "iterations": 1
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_memory_input_128.json",
+      "status": "passed",
+      "count": 128,
+      "group": "input",
+      "native_heap": false,
+      "reverse_order": false,
+      "iterations": 1
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_memory_range_100k.json",
+      "status": "passed",
+      "count": 100000,
+      "group": "range",
+      "native_heap": false,
+      "reverse_order": false,
+      "iterations": 1
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_memory_range_128.json",
+      "status": "passed",
+      "count": 128,
+      "group": "range",
+      "native_heap": false,
+      "reverse_order": false,
+      "iterations": 1
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_native_100k.json",
+      "status": "passed",
+      "count": 100000,
+      "group": "all",
+      "native_heap": true,
+      "reverse_order": false,
+      "iterations": 3
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_native_100k_reverse.json",
+      "status": "passed",
+      "count": 100000,
+      "group": "all",
+      "native_heap": true,
+      "reverse_order": true,
+      "iterations": 3
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_native_128.json",
+      "status": "passed",
+      "count": 128,
+      "group": "all",
+      "native_heap": true,
+      "reverse_order": false,
+      "iterations": 100
+    },
+    {
+      "file": "list_memory_2026-11-04_chunk_native_128_reverse.json",
+      "status": "passed",
+      "count": 128,
+      "group": "all",
+      "native_heap": true,
+      "reverse_order": true,
+      "iterations": 100
+    }
+  ],
+  "all_checksums_passed": true,
+  "all_requested_byte_leak_checks_passed": true,
+  "current_header_unchanged": true
+}

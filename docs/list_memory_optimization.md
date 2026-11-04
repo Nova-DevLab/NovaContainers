@@ -1,10 +1,12 @@
 # list 삽입 메모리 최적화
 
+현재 구현: 길이를 아는 기본 list 반복자 및 같은 원소 타입의 연속 반복자는 대상에 직접 예약·생성합니다. 자기 범위는 인덱스로 보존하고 앞 삽입에 따른 위치 변화도 보정합니다. 다른 반복자는 작은 vector와 큰 list 버퍼 경로를 유지합니다. 최신 결과는 [직접 삽입 검증](list_direct_validation.md)을 참고합니다. 아래 수치와 변경 설명은 이전 vector 기반 구현의 역사적 기록입니다. 중간 단계의 [청크 실험](list_chunk_validation.md)과 최신 구현을 혼동하지 않습니다.
+
 후속 API 정리에서 일반 `list::reserve()`를 제거하고 `reserve_front/back()`만 남겼습니다. 아래 측정과 소스 해시, 패치는 API 정리 전 스냅샷을 기록하며 이번 삭제 후 헤더의 해시와 구분합니다. 아래 최종 헤더 패치만 현재 헤더에 역적용해서는 당시의 전체 스냅샷을 복원할 수 없습니다.
 
 2026-11-04 검토한 세 후보 중 두 삽입 최적화를 적용했습니다. 디렉터리 제자리 재배치는 성능 무저하를 확인하지 못하여 제외했습니다. 원소 블록 크기, 원소/iterator 레이아웃과 공개 함수 시그니처는 유지합니다.
 
-## 적용한 변경
+## 당시 적용한 변경
 
 - 개수 지정 insert는 count개짜리 임시 vector를 만들지 않고 가까운 끝에 value를 직접 복사 생성한 뒤 기존과 동일하게 rotate합니다. 양끝 확장은 원래 원소의 주소를 유지하므로 내부 원소를 value로 전달해도 복사 생성 중 참조가 유지됩니다. 복사 생성 실패 시 추가한 원소만 제거하며 원래 원소 수, 값, 주소를 유지합니다. 여유 용량은 기존 reserve/생성 실패 계약처럼 달라질 수 있습니다. rotate 실패 시 기존 basic guarantee를 유지합니다.
 - 범위 insert는 std::sized_sentinel_for<InputIt, InputIt>일 때만 O(1) 거리 계산으로 임시 버퍼를 미리 reserve합니다. 단일 패스 입력과 일반 forward 범위는 추가 순회하지 않습니다. 자기 범위 삽입을 위한 임시 버퍼는 유지합니다. reserve는 미사용 T를 생성하지 않습니다.
@@ -53,7 +55,7 @@ A/B는 run_list_memory_benchmark.ps1을 사용합니다. BaselineHeader에는 no
     -Label final_native_100k -Count 100000 -Iterations 3 -Group all -NativeHeap
 ```
 
-Layout은 fragmented 또는 contiguous이며, 후자는 fixture 준비 단계에서 optimize합니다. Group은 all/count/range/queue/control입니다. ReverseOrder는 첫 측정 순서를 뒤집으며 내부 교대는 유지합니다. 빌드와 측정은 직렬 실행합니다. 결과 JSON에 각 헤더와 하니스 SHA-256, 조건과 실행 상태를 기록합니다.
+Layout은 fragmented 또는 contiguous이며, 후자는 fixture 준비 단계에서 optimize합니다. Group은 all/count/range/input/queue/control입니다. ReverseOrder는 첫 측정 순서를 뒤집으며 내부 교대는 유지합니다. 빌드와 측정은 직렬 실행합니다. 결과 JSON에 각 헤더와 하니스 SHA-256, 조건과 실행 상태를 기록합니다.
 
 초기 검토와 보류 근거는 [후보 문서](list_memory_candidates.md), 원자료는 이 문서와 같은 날짜의 docs/benchmarks/list_memory_* 파일에 보존합니다. 최종 성능 및 검증 결과는 아래 후속 기록에 기재합니다.
 

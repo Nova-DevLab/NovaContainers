@@ -1,0 +1,18 @@
+﻿{
+    "started_at":  "2026-11-04T15:54:30.8245374+09:00",
+    "status":  "passed",
+    "count":  128,
+    "iterations":  1,
+    "group":  "range",
+    "layout":  "fragmented",
+    "reverse_order":  false,
+    "native_heap":  false,
+    "baseline_header":  "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\docs\\benchmarks\\list_direct_2026-11-04_baseline.hpp",
+    "baseline_sha256":  "C1262A289CA8F473193DC97DD42C94D2C7C6135FE5C3936823F4AD3A508F6B06",
+    "candidate_header":  "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\docs\\benchmarks\\list_direct_2026-11-04_candidate.hpp",
+    "candidate_sha256":  "094C8456082AEE62A7C7B829E663E0DBC5B1EFD302A8C50107C0B9002624204E",
+    "benchmark_sha256":  "4041610B885BDBBA4B5621705750039750A332D558130DB97A5D2CB7B86FCC79",
+    "priority":  "BelowNormal",
+    "affinity":  1,
+    "finished_at":  "2026-11-04T15:55:59.0563169+09:00"
+}
