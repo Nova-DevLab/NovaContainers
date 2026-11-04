@@ -1,0 +1,18 @@
+{
+  "started_at": "2026-11-04T13:13:01.9912215+09:00",
+  "status": "passed",
+  "count": 100000,
+  "iterations": 3,
+  "group": "range",
+  "layout": "fragmented",
+  "reverse_order": false,
+  "native_heap": false,
+  "baseline_header": "C:\\Users\\YDK\\AppData\\Local\\Temp\\nova-list-memory-20261104\\list_baseline1.hpp",
+  "baseline_sha256": "E1C6FEEBA85E6C50C2FBD53CFC7FA7EE5EFBD07C29F396B7A917BDE89693A988",
+  "candidate_header": "C:\\Users\\YDK\\AppData\\Local\\Temp\\nova-list-memory-20261104\\list_candidate2.hpp",
+  "candidate_sha256": "3F892D0996A58BDC96DAD7898E2BD8D8B23BBD4B5FB2E3514A8E765640578B70",
+  "benchmark_sha256": "5559DF7BDD5F2D91A9B5C957201250AA1594E202F0C5C06F9C8C7F71C2382329",
+  "priority": "BelowNormal",
+  "affinity": 1,
+  "finished_at": "2026-11-04T13:13:28.4654559+09:00"
+}

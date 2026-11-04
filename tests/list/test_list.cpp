@@ -408,6 +408,61 @@ void test_aliasing_and_throwing_moves() {
 		"assign with aliased fill value failed");
 }
 
+void test_count_insert_aliasing_and_copy_failure() {
+	for (bool optimized : {false, true}) {
+		for (std::size_t position : {std::size_t{0}, std::size_t{2}, std::size_t{8}, std::size_t{10}}) {
+			nova::list<int, std::allocator<int>, 16> values;
+			std::vector<int> expected;
+			for (int i = 0; i < 10; ++i) {
+				values.push_back(i);
+				expected.push_back(i);
+			}
+			if (optimized) values.optimize();
+			const int fill = values[3];
+			const auto inserted = values.insert(values.begin() + static_cast<std::ptrdiff_t>(position),
+				13, values[3]);
+			expected.insert(expected.begin() + static_cast<std::ptrdiff_t>(position), 13, fill);
+			require_equal(values, expected);
+			require(inserted == values.begin() + static_cast<std::ptrdiff_t>(position),
+				"count insertion returned the wrong position");
+
+			for (int budget : {0, 3, 12}) {
+				{
+					nova::list<tracked, std::allocator<tracked>, 16> throwing;
+					for (int i = 0; i < 10; ++i) throwing.emplace_back(i);
+					if (optimized) throwing.optimize();
+					std::array<const tracked*, 10> addresses;
+					for (std::size_t i = 0; i < addresses.size(); ++i) addresses[i] = &throwing[i];
+					tracked::construction_budget = budget;
+					bool threw = false;
+					try {
+						throwing.insert(throwing.begin() + static_cast<std::ptrdiff_t>(position),
+							13, throwing[3]);
+					} catch (const std::runtime_error&) {
+						threw = true;
+					}
+					tracked::construction_budget = -1;
+					require(threw && throwing.size() == addresses.size(),
+						"failed count copy changed size");
+					for (std::size_t i = 0; i < addresses.size(); ++i) {
+						require(&throwing[i] == addresses[i] && throwing[i].value == static_cast<int>(i),
+							"failed count copy changed an original value or address");
+					}
+					require(tracked::live == 10, "failed count copy leaked live elements");
+					tracked::construction_budget = 0;
+					const auto unchanged = throwing.insert(throwing.begin() + 2, 0, throwing[3]);
+					tracked::construction_budget = -1;
+					require(unchanged == throwing.begin() + 2 && throwing.size() == 10,
+						"empty count insertion constructed an element");
+					throwing.emplace_back(42);
+					require(throwing.back().value == 42, "failed count copy prevented reuse");
+				}
+				require(tracked::live == 0, "count insertion destruction leaked elements");
+			}
+		}
+	}
+}
+
 struct throwing_move {
 	inline static int live = 0;
 	inline static int budget = -1;
@@ -683,6 +738,80 @@ void test_self_ranges_and_input_iterators() {
 	require_equal(input_values, std::vector<int>{7, 8, 9});
 }
 
+void test_sized_range_insert_storage_modes() {
+	for (bool optimized : {false, true}) {
+		for (std::size_t position : {std::size_t{0}, std::size_t{4}, std::size_t{10}}) {
+			nova::list<int, std::allocator<int>, 8> values;
+			std::vector<int> expected;
+			for (int i = 0; i < 10; ++i) {
+				values.push_back(i);
+				expected.push_back(i);
+			}
+			if (optimized) values.optimize();
+			const std::vector<int> source(expected.begin() + 1, expected.end() - 1);
+			values.insert(values.begin() + static_cast<std::ptrdiff_t>(position),
+				values.begin() + 1, values.end() - 1);
+			expected.insert(expected.begin() + static_cast<std::ptrdiff_t>(position),
+				source.begin(), source.end());
+			require_equal(values, expected);
+		}
+	}
+	for (bool front : {false, true}) {
+		nova::list<std::unique_ptr<int>, std::allocator<std::unique_ptr<int>>, 32> values;
+		values.emplace_back(std::make_unique<int>(-1));
+		std::vector<std::unique_ptr<int>> source;
+		for (int i = 0; i < 17; ++i) source.push_back(std::make_unique<int>(i));
+		values.insert(front ? values.begin() : values.end(),
+			std::make_move_iterator(source.begin()), std::make_move_iterator(source.end()));
+		require(values.size() == 18, "sized move range changed insertion size");
+		for (std::size_t i = 0; i < source.size(); ++i) {
+			require(source[i] == nullptr && *values[i + (front ? 0 : 1)] == static_cast<int>(i),
+				"sized move range lost element ownership or order");
+		}
+		require(*(front ? values.back() : values.front()) == -1,
+			"sized move range changed an existing element");
+	}
+}
+
+void test_mixed_directory_recenter_ownership() {
+	using allocator_type = tracking_allocator<int, false>;
+	auto state = std::make_shared<allocation_state>();
+	{
+		nova::list<int, allocator_type, 8> values{allocator_type(state)};
+		std::deque<int> expected;
+		for (int i = 0; i < 17; ++i) {
+			values.push_back(i);
+			expected.push_back(i);
+		}
+		values.optimize();
+		for (int pass = 0; pass < 2; ++pass) {
+			for (bool front : {false, true}) {
+				for (int step = 0; step < 500; ++step) {
+					const int marker = 1000 + pass * 1000 + step;
+					const int* anchor = &values[8];
+					if (front) {
+						values.push_front(marker);
+						values.pop_back();
+						expected.push_front(marker);
+						expected.pop_back();
+						require(&values[9] == anchor, "front recenter moved a surviving element");
+					} else {
+						values.push_back(marker);
+						values.pop_front();
+						expected.push_back(marker);
+						expected.pop_front();
+						require(&values[7] == anchor, "back recenter moved a surviving element");
+					}
+					if (step % 37 == 0) require_equal(values, expected);
+				}
+				require_equal(values, expected);
+			}
+			values.optimize();
+		}
+	}
+	require(state->allocations.empty(), "mixed recenter leaked or duplicated block ownership");
+}
+
 void test_empty_reserve_failure() {
 	using allocator_type = tracking_allocator<int, false>;
 	for (bool front : {false, true}) {
@@ -944,6 +1073,7 @@ int main() {
 		test_random_differential();
 		test_move_only_and_lifetime();
 		test_aliasing_and_throwing_moves();
+		test_count_insert_aliasing_and_copy_failure();
 		test_throwing_move_basic_guarantee();
 		test_throwing_range_insert();
 		test_allocator_propagation<false>();
@@ -953,6 +1083,8 @@ int main() {
 		test_tiny_blocks_and_sliding_queue<8>();
 		test_tiny_blocks_and_sliding_queue<16>();
 		test_self_ranges_and_input_iterators();
+		test_sized_range_insert_storage_modes();
+		test_mixed_directory_recenter_ownership();
 		test_empty_reserve_failure();
 		test_iterator_terminal_boundaries<4>();
 		test_iterator_terminal_boundaries<8>();

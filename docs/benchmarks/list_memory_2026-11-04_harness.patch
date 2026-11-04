@@ -1,0 +1,53 @@
+diff --git a/benchmarks/list/benchmark_list_memory.cpp b/benchmarks/list/benchmark_list_memory.cpp
+index 5a4639a..0daf953 100644
+--- a/benchmarks/list/benchmark_list_memory.cpp
++++ b/benchmarks/list/benchmark_list_memory.cpp
+@@ -207,8 +207,9 @@ struct fixture {
+ 	}
+ };
+ 
+-template <typename List>
+-NOVA_MEMORY_NOINLINE std::uint64_t apply(fixture<List>& data, std::size_t count, operation op) {
++template <operation Op, typename List>
++NOVA_MEMORY_NOINLINE std::uint64_t apply_case(fixture<List>& data, std::size_t count) {
++	constexpr operation op = Op;
+ 	auto& values = data.values;
+ 	if (op <= operation::range_back) {
+ 		const unsigned position = static_cast<unsigned>(op) % 3;
+@@ -247,6 +248,27 @@ NOVA_MEMORY_NOINLINE std::uint64_t apply(fixture<List>& data, std::size_t count,
+ 	return result;
+ }
+ 
++template <typename List>
++std::uint64_t apply(fixture<List>& data, std::size_t count, operation op) {
++	// Keep each timed operation independent of unrelated insertion code generation.
++	switch (op) {
++	case operation::count_front: return apply_case<operation::count_front>(data, count);
++	case operation::count_middle: return apply_case<operation::count_middle>(data, count);
++	case operation::count_back: return apply_case<operation::count_back>(data, count);
++	case operation::range_front: return apply_case<operation::range_front>(data, count);
++	case operation::range_middle: return apply_case<operation::range_middle>(data, count);
++	case operation::range_back: return apply_case<operation::range_back>(data, count);
++	case operation::queue_front: return apply_case<operation::queue_front>(data, count);
++	case operation::queue_back: return apply_case<operation::queue_back>(data, count);
++	case operation::forward: return apply_case<operation::forward>(data, count);
++	case operation::reverse: return apply_case<operation::reverse>(data, count);
++	case operation::index: return apply_case<operation::index>(data, count);
++	case operation::sort: return apply_case<operation::sort>(data, count);
++	case operation::optimize: return apply_case<operation::optimize>(data, count);
++	}
++	throw std::invalid_argument("Unknown benchmark operation");
++}
++
+ struct measurement {
+ 	double nanoseconds = 0;
+ 	std::uint64_t checksum = 0;
+@@ -374,7 +396,7 @@ int main(int argc, char** argv) {
+ 		std::cerr << "Requested-byte probe includes directory, element blocks and string allocations; "
+ 			"excludes malloc overhead, tracking headers and process working set. "
+ 			"Timing disables counters but retains identical global allocation wrappers in both paths. ";
+-			
++
+ #endif
+ 		std::cerr << "list_u64_bytes=" << sizeof(nova::list<std::uint64_t>)
+ 			<< "; iterator_u64_bytes=" << sizeof(nova::list<std::uint64_t>::iterator) << '\n';

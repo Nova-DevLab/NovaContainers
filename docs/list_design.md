@@ -34,13 +34,15 @@ for (auto block : values.blocks()) {
 - `push_front/back`, `emplace_front/back`, `pop_front/back`, `front/back`, `operator[]`, `at`
 - random-access iterator, const iterator, reverse iterator, 표준 정렬 알고리즘 연동
 - 위치 기반 `insert/emplace/erase`, count/range 삽입과 범위 삭제, `assign`, `resize`
-- `reserve_front(n)`, `reserve_back(n)`은 해당 방향에 n개를 더 추가할 빈 슬롯을 확보합니다. `reserve(n)`은 전체 크기가 n개가 되도록 뒤쪽 슬롯을 확보합니다.
+- 예약 API는 `reserve_front(n)`, `reserve_back(n)`만 제공합니다. 각각 해당 방향에 n개를 더 추가할 빈 슬롯을 확보합니다. 일반 `reserve()`는 제공하지 않으며, 예약 없이 추가하면 필요한 블록을 자동으로 확보합니다.
 - `capacity()`는 디렉터리에서 추적하는 사용 가능한 슬롯 수이며 메인 배열의 실제 보유량과 다를 수 있습니다. `front_capacity()`, `back_capacity()`는 방향별 빈 슬롯 수입니다.
 - 중간 삽입·삭제는 가까운 끝 방향으로 원소를 이동합니다. 범위 삽입은 입력을 임시 저장한 뒤 회전하므로 자기 범위 삽입도 지원합니다.
 
+일반 `reserve(n)`은 방향이 드러나지 않는 혼동을 없애기 위해 제거했습니다. 이전의 뒤쪽 최종 크기 예약과 같은 동작이 필요하면 `n > values.size()`일 때 `values.reserve_back(n - values.size())`를 호출합니다. 두 방향별 API의 인자는 최종 크기가 아닌 추가할 개수입니다.
+
 ## 수명과 무효화
 
-- 양끝 추가는 기존 원소 주소를 유지합니다. 디렉터리 재할당은 iterator를 무효화할 수 있으므로 삽입 및 reserve 이후 iterator를 다시 얻는 것이 안전합니다. 기존 원소의 span은 유지됩니다.
+- 양끝 추가는 기존 원소 주소를 유지합니다. 디렉터리 재할당은 iterator를 무효화할 수 있으므로 삽입 및 방향별 예약 이후 iterator를 다시 얻는 것이 안전합니다. 기존 원소의 span은 유지됩니다.
 - 양끝 삭제 시 삭제한 원소의 참조·span은 무효입니다. 해당 방향에서 사용하지 않게 된 블록은 반환할 수 있습니다.
 - 중간 삽입·삭제, 대입, clear 이후 기존 iterator·참조·span을 재사용하지 않습니다.
 - 메모리 정리와 연속 재구성은 `optimize()` 하나로 수행합니다. 과도한 메인 배열과 예약 블록을 반환하며, 실제 재구성 시 원소 주소·iterator·span이 무효화됩니다. 최소 저장 상태이면 재구성을 생략합니다. `shrink_to_fit()`은 제공하지 않습니다.

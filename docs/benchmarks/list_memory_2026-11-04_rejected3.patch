@@ -1,0 +1,34 @@
+diff --git a/include/NovaContainers/list.hpp b/include/NovaContainers/list.hpp
+index 272052f..016aaed 100644
+--- a/include/NovaContainers/list.hpp
++++ b/include/NovaContainers/list.hpp
+@@ -590,10 +590,25 @@ class list {
+ 		}
+ 		length = std::min(length, limit);
+ 		const size_type new_begin = extra_front + (length - needed) / 2;
+-		std::vector<block_entry> replacement(length);
+-		for (size_type n = 0; n < allocated; ++n)
+-			replacement[new_begin + n] = directory_[allocated_begin_ + n];
+-		directory_.swap(replacement);
++		if (length == directory_.size()) {
++			// 겹치는 구간은 이동 방향을 고르고, 원래 구간의 빈 자리만 지운다.
++			if (new_begin < allocated_begin_) {
++				std::move(directory_.begin() + allocated_begin_, directory_.begin() + allocated_end_,
++					directory_.begin() + new_begin);
++				std::fill(directory_.begin() + std::max(new_begin + allocated, allocated_begin_),
++					directory_.begin() + allocated_end_, block_entry{});
++			} else if (new_begin > allocated_begin_) {
++				std::move_backward(directory_.begin() + allocated_begin_, directory_.begin() + allocated_end_,
++					directory_.begin() + new_begin + allocated);
++				std::fill(directory_.begin() + allocated_begin_,
++					directory_.begin() + std::min(new_begin, allocated_end_), block_entry{});
++			}
++		} else {
++			std::vector<block_entry> replacement(length);
++			for (size_type n = 0; n < allocated; ++n)
++				replacement[new_begin + n] = directory_[allocated_begin_ + n];
++			directory_.swap(replacement);
++		}
+ 		first_ = new_begin * k_block_capacity + before;
+ 		allocated_begin_ = new_begin;
+ 		allocated_end_ = new_begin + allocated;

@@ -1,0 +1,1 @@
+Requested-byte probe includes directory, element blocks and string allocations; excludes malloc overhead, tracking headers and process working set. Timing disables counters but retains identical global allocation wrappers in both paths. list_u64_bytes=88; iterator_u64_bytes=24

@@ -1,0 +1,72 @@
+{
+  "release": {
+    "configuration": "Release",
+    "build_directory": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release",
+    "started_at": "2026-11-04T13:26:26.5870237+09:00",
+    "build": "passed",
+    "harness": "passed",
+    "status": "passed",
+    "steps": [
+      {
+        "name": "configure",
+        "exit_code": 0,
+        "seconds": 0.172,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\configure.log"
+      },
+      {
+        "name": "build",
+        "exit_code": 0,
+        "seconds": 32.194,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\build.log"
+      },
+      {
+        "name": "harness",
+        "exit_code": 0,
+        "seconds": 0.17,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-release\\list-validation\\harness.log"
+      }
+    ],
+    "error": null,
+    "priority": "BelowNormal",
+    "affinity": 1,
+    "finished_at": "2026-11-04T13:26:59.2113598+09:00"
+  },
+  "asan": {
+    "configuration": "Release",
+    "build_directory": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan",
+    "started_at": "2026-11-04T13:26:59.2336496+09:00",
+    "build": "passed",
+    "harness": "passed",
+    "status": "passed",
+    "steps": [
+      {
+        "name": "configure",
+        "exit_code": 0,
+        "seconds": 0.271,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\configure.log"
+      },
+      {
+        "name": "build",
+        "exit_code": 0,
+        "seconds": 21.738,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\build.log"
+      },
+      {
+        "name": "harness",
+        "exit_code": 0,
+        "seconds": 1.603,
+        "log": "D:\\work\\TestSrc\\NovaDevLab\\NovaContainers\\build\\list-asan\\list-validation\\harness.log"
+      }
+    ],
+    "error": null,
+    "priority": "BelowNormal",
+    "affinity": 1,
+    "finished_at": "2026-11-04T13:27:22.8714112+09:00"
+  },
+  "header_sha256": "627EBEFCD93DE4EE9FA870B9A6565C91F39C0B806DC07BB89252CD3D75660A33",
+  "tests_sha256": "E074E40CEE036B99AD6A59C814B5F566229B0668A1FAC18AA416064060E65735",
+  "benchmark_sha256": "583E8796BB251B25D1905C6C08C6556B9495C81D256C6870A27C7EEF1CF74641",
+  "base_commit": "3adfe52d686f232974476d0d681ac64e27817480",
+  "cpu": "11th Gen Intel(R) Core(TM) i7-1165G7 @ 2.80GHz",
+  "configuration": "Release x64 C++20 AVX2"
+}

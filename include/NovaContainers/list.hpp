@@ -377,9 +377,6 @@ class list {
 
 	void reserve_front(size_type count) { reserve_slots(count, 0); }
 	void reserve_back(size_type count) { reserve_slots(0, count); }
-	void reserve(size_type count) {
-		if (count > size_) reserve_back(count - size_);
-	}
 	template <typename... Args>
 	reference emplace_back(Args&&... args) {
 		check_growth(1);
@@ -453,13 +450,38 @@ class list {
 	iterator insert(const_iterator position, size_type count, const T& value) {
 		const size_type index = iterator_position(position);
 		check_growth(count);
-		std::vector<T, Alloc> values(count, value, allocator_);
-		return insert_buffered(index, values);
+		if (count == 0) return begin() + static_cast<difference_type>(index);
+		const size_type previous = size_;
+		// 양끝 확장은 기존 원소 주소를 유지하므로 내부 value 참조도 그대로 쓸 수 있다.
+		// 2026-11-04 record64 10만 개 뒤 삽입 최고 요청량: 12,844,198 -> 6,444,159B.
+		// 측정 조건과 한계는 docs/list_memory_optimization.md에 기록한다.
+		if (index < size_ - index) {
+			reserve_front(count);
+			try {
+				for (size_type n = 0; n < count; ++n) emplace_front(value);
+			} catch (...) { while (size_ > previous) pop_front(); throw; }
+			std::rotate(begin(), begin() + static_cast<difference_type>(count),
+				begin() + static_cast<difference_type>(count + index));
+		} else {
+			reserve_back(count);
+			try {
+				for (size_type n = 0; n < count; ++n) emplace_back(value);
+			} catch (...) { while (size_ > previous) pop_back(); throw; }
+			std::rotate(begin() + static_cast<difference_type>(index),
+				begin() + static_cast<difference_type>(previous), end());
+		}
+		return begin() + static_cast<difference_type>(index);
 	}
 	template <std::input_iterator InputIt>
 	iterator insert(const_iterator position, InputIt first, InputIt last) {
 		const size_type index = iterator_position(position);
 		std::vector<T, Alloc> values(allocator_);
+		// 같은 조건의 범위 뒤 삽입 최고 요청량: 21,692,557 -> 19,244,237B.
+		if constexpr (std::sized_sentinel_for<InputIt, InputIt>) {
+			const size_type count = static_cast<size_type>(last - first);
+			check_growth(count);
+			values.reserve(count);
+		}
 		for (; first != last; ++first) {
 			if (values.size() == max_size() - size_) throw std::length_error("nova::list capacity");
 			values.emplace_back(*first);
