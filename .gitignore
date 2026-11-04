@@ -10,7 +10,10 @@
 /TEST_PLAN.md
 /BENCHMARK.md
 /build_and_test.ps1
-/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/ci.yml
 /tests/data/
 
 # Visual Studio user and generated files

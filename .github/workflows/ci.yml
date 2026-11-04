@@ -1,0 +1,85 @@
+name: Linux CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: '검증할 태그, 브랜치 또는 커밋 (비우면 실행 대상 커밋)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-validation
+  cancel-in-progress: false
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - name: GCC Release
+            cc: gcc
+            cxx: g++
+            sanitizer: 'OFF'
+            benchmarks: 'ON'
+          - name: Clang Release
+            cc: clang
+            cxx: clang++
+            sanitizer: 'OFF'
+            benchmarks: 'ON'
+          - name: Clang ASan + UBSan
+            cc: clang
+            cxx: clang++
+            sanitizer: 'ON'
+            benchmarks: 'OFF'
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      SANITIZER: ${{ matrix.sanitizer }}
+      BENCHMARKS: ${{ matrix.benchmarks }}
+      CMAKE_BUILD_PARALLEL_LEVEL: '1'
+      CTEST_PARALLEL_LEVEL: '1'
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:alloc_dealloc_mismatch=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - name: Build and test on one logical CPU
+        shell: bash
+        run: |
+          cpu=$(awk '/Cpus_allowed_list:/ {split($2, cpu, /[-,]/); print cpu[1]; exit}' /proc/self/status)
+          test -n "$cpu"
+          nice -n 10 taskset -c "$cpu" bash -euo pipefail <<'BUILD'
+          printf 'Source commit: '
+          git rev-parse HEAD
+          printf 'Process niceness: '
+          ps -o ni= -p $$
+          taskset -pc $$
+          "$CXX" --version
+          flags=()
+          if [[ "$SANITIZER" == 'ON' ]]; then
+            flags+=("-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all -g")
+            flags+=("-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined")
+          fi
+          cmake -S . -B build/linux-ci \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DNOVA_BUILD_TESTS=ON \
+            -DNOVA_BUILD_BENCHMARKS="$BENCHMARKS" \
+            "${flags[@]}"
+          cmake --build build/linux-ci --parallel 1
+          ctest --test-dir build/linux-ci --parallel 1 \
+            --no-tests=error --timeout 300 --output-on-failure
+          BUILD
